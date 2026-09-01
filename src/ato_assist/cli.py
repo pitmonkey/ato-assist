@@ -12,6 +12,8 @@ import re
 import sys
 from pathlib import Path
 
+from .ingest import IngestError
+from .ingest import run as ingest_run
 from .repo import find_root_from
 from .scaffold import ScaffoldError, Spec, create
 from .schema import SCHEMAS
@@ -26,7 +28,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command is None:
         parser.print_usage(sys.stderr)
         return 2
-    handler = {"init": _init, "validate": _validate, "next-id": _next_id}[args.command]
+    handler = {
+        "init": _init,
+        "validate": _validate,
+        "next-id": _next_id,
+        "ingest": _ingest,
+    }[args.command]
     return handler(args)
 
 
@@ -51,6 +58,9 @@ def _parser() -> argparse.ArgumentParser:
     check = sub.add_parser("validate", help="validate an assessment against the contract")
     check.add_argument("root", nargs="?", default=".")
     check.add_argument("--json", action="store_true", dest="as_json")
+
+    take = sub.add_parser("ingest", help="process inbox/ into sources/")
+    take.add_argument("root", nargs="?", default=".")
 
     nid = sub.add_parser("next-id", help="the next unused ID in a contract directory")
     nid.add_argument("directory", choices=sorted(SCHEMAS))
@@ -112,6 +122,41 @@ def _validate_one(root: Path, path: Path) -> list[Finding]:
     except (OSError, UnicodeDecodeError) as exc:
         return [Finding("error", "ATO-E100", relative, None, f"unreadable: {exc}")]
     return validate_document(relative, text)
+
+
+def _ingest(args: argparse.Namespace) -> int:
+    root = find_root_from(args.root)
+    if root is None:
+        print(f"{args.root} is not inside an assessment", file=sys.stderr)
+        return 2
+    try:
+        report = ingest_run(root)
+    except IngestError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    if not report.ingested and not report.skipped:
+        print("Nothing in inbox/ to ingest.")
+        return 0
+    for source_id in report.ingested:
+        change = report.changes.get(source_id)
+        detail = (
+            f" (revision: {change['added']} added, {change['changed']} changed, "
+            f"{change['removed']} removed)"
+            if change
+            else ""
+        )
+        print(f"ingested {source_id}{detail}")
+    for name in report.skipped:
+        print(f"skipped {name} — already ingested, unchanged")
+    if report.queued_terms:
+        plural = "s" if report.queued_terms != 1 else ""
+        print(f"{report.queued_terms} term{plural} queued in glossary/unresolved.md")
+    for gap in report.gaps:
+        print(f"gap logged: {gap.split('—')[0].strip()}")
+    for question in report.questions:
+        print(f"question: {question}")
+    return 0
 
 
 def _next_id(args: argparse.Namespace) -> int:

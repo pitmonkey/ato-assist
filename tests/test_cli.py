@@ -93,3 +93,25 @@ def test_next_id_starts_at_one_and_then_follows_what_exists(
 def test_no_arguments_prints_usage_and_exits_two(capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main([]) == 2
     assert "usage" in capsys.readouterr().err.lower()
+
+
+def test_ingest_reports_what_it_did(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    (tmp_path / "inbox" / "ssp.md").write_text("# SSP\n\nThe SIEM logs everything.\n")
+    capsys.readouterr()
+    assert cli.main(["ingest", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "SRC-0001" in out
+    assert "1 term" in out
+
+
+def test_ingest_surfaces_questions_it_could_not_answer_itself(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    (tmp_path / "inbox" / "diagram.vsdx").write_bytes(b"\x00binary")
+    capsys.readouterr()
+    cli.main(["ingest", str(tmp_path)])
+    assert "diagram.vsdx" in capsys.readouterr().out

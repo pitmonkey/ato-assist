@@ -85,3 +85,11 @@ def test_split_drops_one_blank_line_between_the_fence_and_the_body() -> None:
         "id: CLM-0001\n",
         "Body.\n",
     )
+
+
+def test_parse_reports_line_numbers_relative_to_the_file_not_the_block() -> None:
+    from ato_assist.miniyaml import MiniYamlError
+
+    with pytest.raises(MiniYamlError) as excinfo:
+        frontmatter.parse("---\nid: CLM-0042\n\tbad: tab\n---\n")
+    assert excinfo.value.line == 3

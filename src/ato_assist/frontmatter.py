@@ -10,7 +10,7 @@ import datetime
 import re
 from typing import Any
 
-from .miniyaml import loads
+from .miniyaml import MiniYamlError, loads
 
 __all__ = ["MissingFrontmatterError", "parse", "render", "split"]
 
@@ -55,7 +55,11 @@ def parse(text: str) -> tuple[dict[str, Any], str]:
     front, body = split(text)
     if front is None:
         raise MissingFrontmatterError("no YAML frontmatter block")
-    return loads(front), body
+    try:
+        return loads(front), body
+    except MiniYamlError as exc:
+        # The block starts on line 2 of the file; report where the assessor has to look.
+        raise MiniYamlError(exc.message, exc.line + 1) from None
 
 
 def render(data: dict[str, Any], body: str) -> str:

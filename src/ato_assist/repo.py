@@ -12,7 +12,14 @@ from typing import Any
 
 from .miniyaml import MiniYamlError, loads
 
-__all__ = ["ASSESSMENT_FILE", "find_root", "load_assessment", "load_yaml", "relative"]
+__all__ = [
+    "ASSESSMENT_FILE",
+    "find_root",
+    "find_root_from",
+    "load_assessment",
+    "load_yaml",
+    "relative",
+]
 
 ASSESSMENT_FILE = "assessment.yaml"
 # Deep enough for any real layout, shallow enough that a stray marker far up the tree
@@ -22,7 +29,12 @@ _MAX_DEPTH = 8
 
 def find_root(path: Path | str) -> Path | None:
     """The assessment root above the file ``path``, or ``None`` if there is not one nearby."""
-    current = Path(path).parent
+    return find_root_from(Path(path).parent)
+
+
+def find_root_from(directory: Path | str) -> Path | None:
+    """The assessment root at or above ``directory``."""
+    current = Path(directory)
     for _ in range(_MAX_DEPTH):
         if (current / ASSESSMENT_FILE).is_file():
             return current

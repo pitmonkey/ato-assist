@@ -1,0 +1,20 @@
+schema: ato-assist/register-columns@1
+
+# AUTHORED PLACEHOLDER. The governance board's own register template has not been seen.
+# Replace these columns with theirs; nothing in the code depends on this particular set.
+review-required: true
+
+columns:
+  - {field: id, heading: Risk ID}
+  - {field: title, heading: Risk}
+  - {field: threat, heading: Threat}
+  - {field: vulnerability, heading: Vulnerability}
+  - {field: consequence, heading: Consequence}
+  - {field: likelihood, heading: Likelihood}
+  - {field: impact, heading: Consequence rating}
+  - {field: severity, heading: Risk rating}
+  - {field: state, heading: Status}
+  - {field: owner, heading: Owner}
+  - {field: treatment, heading: Treatment}
+  - {field: disposition, heading: Acceptance rationale}
+  - {field: refs, heading: Traceability}

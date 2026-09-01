@@ -283,3 +283,7 @@ def test_a_chunk_file_inside_a_source_directory_is_not_validated() -> None:
 def test_a_filename_outside_the_naming_convention_is_e122(path: str) -> None:
     findings = validate.validate_document(path, VALID_CLAIM)
     assert "ATO-E122" in codes(findings)
+
+
+def test_a_readme_explaining_a_contract_directory_is_not_an_item() -> None:
+    assert validate.validate_document("claims/README.md", "# `claims/`\n\nWhat goes here.\n") == []

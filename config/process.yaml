@@ -1,0 +1,99 @@
+schema: ato-assist/process@1
+
+# AUTHORED PLACEHOLDER. This sequence and these criteria were written by the plugin
+# author, not by an assessment team. Validate them with the team who will use them, then
+# delete this marker; `ato status` nags until you do.
+review-required: true
+
+phases:
+  - id: intake
+    title: Intake
+    exit_criteria:
+      - id: system-context-captured
+        describe: The assessor has been interviewed about the system
+        check: file_exists
+        args: {path: notes/system-context.md}
+      - id: sources-ingested
+        describe: At least one source document has been ingested
+        check: field_count
+        args: {dir: sources, field: state, equals: ingested, min: 1}
+
+  - id: claims-extraction
+    title: Claims extraction
+    exit_criteria:
+      - id: every-source-claimed
+        describe: Every ingested source is cited by at least one claim
+        check: no_orphans
+        args: {from: sources, referenced_by: claims, via: source}
+      - id: no-draft-claims
+        describe: No claim is still a draft
+        check: field_count
+        args: {dir: claims, field: state, equals: draft, max: 0}
+      - id: glossary-not-blocking
+        describe: No claim is waiting on an undefined term
+        check: field_count
+        args: {dir: claims, field: state, equals: needs-clarification, max: 0}
+
+  - id: control-mapping
+    title: Control mapping
+    exit_criteria:
+      - id: claims-mapped
+        describe: Every corroborated or asserted claim is cited by a control
+        check: no_orphans
+        args: {from: claims, referenced_by: controls, via: claims}
+      - id: frameworks-present
+        describe: The configured framework has controls on disk
+        check: field_count
+        args: {dir: controls, field: framework, min: 1}
+
+  - id: threat-mapping
+    title: Threat mapping
+    exit_criteria:
+      - id: threats-recorded
+        describe: The threat picture has been written down
+        check: file_exists
+        args: {path: notes/threats.md}
+      - id: no-stale-rfis
+        describe: No request for information has been open longer than 21 days
+        check: age_max
+        args: {dir: rfi, where: {state: open}, date_field: asked_on, max_days: 21}
+
+  - id: risk-extraction
+    title: Risk extraction
+    exit_criteria:
+      - id: gaps-have-risks
+        describe: Every unsatisfied control is cited by a risk
+        check: no_orphans
+        args: {from: controls, referenced_by: risks, via: refs, where: {status: not-satisfied}}
+      - id: risks-sourced
+        describe: Every risk cites at least one claim, control or piece of evidence
+        check: required_ref
+        args: {dir: risks, field: refs, min: 1}
+
+  - id: evidence-reconciliation
+    title: Evidence reconciliation
+    exit_criteria:
+      - id: satisfied-needs-evidence
+        describe: Every satisfied control cites at least one piece of evidence
+        check: required_ref
+        args: {dir: controls, where: {status: satisfied}, field: evidence, min: 1}
+      - id: no-draft-evidence
+        describe: No evidence entry is still a draft
+        check: field_count
+        args: {dir: evidence, field: state, equals: draft, max: 0}
+
+  - id: report
+    title: Report
+    exit_criteria:
+      - id: no-draft-risks
+        describe: No risk is still a draft
+        check: field_count
+        args: {dir: risks, field: state, equals: draft, max: 0}
+      - id: register-exported
+        describe: The risk register has been exported
+        check: file_exists
+        args: {path: "outputs/{short_name}-risk-register.csv"}
+      - id: report-drafted
+        describe: The report has been drafted
+        check: file_exists
+        args: {path: "outputs/{short_name}-report.md"}

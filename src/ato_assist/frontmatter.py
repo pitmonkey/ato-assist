@@ -12,7 +12,7 @@ from typing import Any
 
 from .miniyaml import MiniYamlError, loads
 
-__all__ = ["MissingFrontmatterError", "parse", "render", "split"]
+__all__ = ["MissingFrontmatterError", "dump", "parse", "render", "split"]
 
 _FENCE = "---"
 # A bare scalar that YAML would read as something other than a plain string.
@@ -62,12 +62,20 @@ def parse(text: str) -> tuple[dict[str, Any], str]:
         raise MiniYamlError(exc.message, exc.line + 1) from None
 
 
-def render(data: dict[str, Any], body: str) -> str:
-    """Render a mapping and a body back into a contract file."""
+def dump(data: dict[str, Any]) -> str:
+    """Render a mapping as YAML in the supported subset, with no fences.
+
+    Used for the standalone configuration files an assessment carries — the fenced form
+    is `render`.
+    """
     lines: list[str] = []
     _emit_map(lines, data, indent=0)
-    front = "".join(lines)
-    return f"{_FENCE}\n{front}{_FENCE}\n" + (f"\n{body}" if body else "")
+    return "".join(lines)
+
+
+def render(data: dict[str, Any], body: str) -> str:
+    """Render a mapping and a body back into a contract file."""
+    return f"{_FENCE}\n{dump(data)}{_FENCE}\n" + (f"\n{body}" if body else "")
 
 
 def _emit_map(lines: list[str], data: dict[str, Any], *, indent: int) -> None:

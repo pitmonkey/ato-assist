@@ -93,3 +93,9 @@ def test_parse_reports_line_numbers_relative_to_the_file_not_the_block() -> None
     with pytest.raises(MiniYamlError) as excinfo:
         frontmatter.parse("---\nid: CLM-0042\n\tbad: tab\n---\n")
     assert excinfo.value.line == 3
+
+
+def test_dump_renders_a_bare_mapping_without_fences() -> None:
+    assert frontmatter.dump({"phase": "intake", "created": datetime.date(2026, 9, 2)}) == (
+        "phase: intake\ncreated: 2026-09-02\n"
+    )

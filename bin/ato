@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# The `ato` CLI. No venv, no install: system python3 plus the package next to this file.
+root="${CLAUDE_PLUGIN_ROOT:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"
+PYTHONPATH="$root/src${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m ato_assist.cli "$@"

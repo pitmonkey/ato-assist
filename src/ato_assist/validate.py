@@ -42,6 +42,9 @@ def schema_for_path(path: str) -> tuple[ItemSchema, str] | None:
     parts = PurePosixPath(path).parts
     if not parts:
         return None
+    if parts[-1] == "README.md":
+        # Every contract directory carries one, explaining what belongs in it.
+        return None
     directory = parts[0]
     schema = SCHEMAS.get(directory)
     if schema is None:

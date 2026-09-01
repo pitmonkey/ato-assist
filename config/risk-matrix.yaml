@@ -1,0 +1,19 @@
+schema: ato-assist/risk-matrix@1
+
+# AUTHORED PLACEHOLDER. This is a conventional 5x5 matrix, NOT an organisation-approved
+# one. The likelihood and consequence scales a governance board recognises are theirs to
+# supply. Replace the scales and the table, then delete this marker.
+review-required: true
+
+likelihood: [rare, unlikely, possible, likely, almost-certain]
+impact: [insignificant, minor, moderate, major, severe]
+
+ratings:
+  rare:           {insignificant: low,    minor: low,     moderate: medium, major: medium, severe: high}
+  unlikely:       {insignificant: low,    minor: low,     moderate: medium, major: high,   severe: high}
+  possible:       {insignificant: low,    minor: medium,  moderate: medium, major: high,   severe: extreme}
+  likely:         {insignificant: medium, minor: medium,  moderate: high,   major: high,   severe: extreme}
+  almost-certain: {insignificant: medium, minor: high,    moderate: high,   major: extreme, severe: extreme}
+
+# Ordered lowest to highest, for sorting a register and colouring a report.
+severities: [low, medium, high, extreme]

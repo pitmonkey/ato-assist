@@ -1,0 +1,11 @@
+{
+  "name": "ato-assist",
+  "description": "ATO assessment workbench for Claude Code. Scaffolds a traceability-enforced assessment repository, ingests SSPs and evidence into a source-referenced file contract, maps claims to ISM controls, and derives assessment status from files rather than prose.",
+  "version": "0.1.0",
+  "author": {
+    "name": "pitmonkey",
+    "email": "pitmonkey@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "keywords": ["security", "ato", "irap", "ism", "assessment", "compliance", "risk"]
+}

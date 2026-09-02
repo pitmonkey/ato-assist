@@ -75,6 +75,7 @@ ato commit --kind map --summary "ISM PROTECTED: 118 controls mapped, 31 uncovere
 
 - One claim can bear on many controls, and one control on many claims. Do not force a one-to-one mapping.
 - **Never renumber a claim.** IDs are immutable: the filename carries the ID, and every control, risk and RFI that cites it resolves by that number. Renumbering after a bulk edit silently repoints citations at whatever claim now holds the old ID — the reference stays well-formed, the claim still exists, and `ato validate` passes cleanly while a control cites something unrelated to it. If a claim must go, retire it (`state: retired`) and leave the number spent.
+- **Watch for a control becoming an overflow bin.** A control that accumulates a dozen or more claims is usually not well covered; it is where claims went when nobody could find a better home. Re-read its citations and move what does not bear on it.
 - After any bulk edit, generation or deduplication, **re-read the citations**. `grep -rn "CLM-00NN" .` shows everything that points at a claim; check each one still means what its body text says it means. No script can tell whether a cited claim is relevant to the control citing it, and bulk operations are exactly when that goes wrong.
 - If no claim bears on a control, leave it uncovered and say so. An invented mapping hides a gap, which is the worst possible outcome of this step.
 - If a term in a control is undefined in this assessment, queue it and mark the control `needs-clarification` in its body — do not guess at what the ISM means by it in this context.

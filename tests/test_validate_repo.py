@@ -374,3 +374,94 @@ def test_a_deliberately_unofficial_source_is_not_flagged(assessment: Path) -> No
     )
     _claim(assessment, 1, "SRC-0002")
     assert "ATO-E309" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+# --- a quote must survive verbatim into the section it cites -------------------------
+
+
+def _sourced(root: Path, number: int, chunk: str, text: str) -> None:
+    _source(root, number)
+    (root / f"sources/SRC-{number:04d}-doc" / chunk).write_text(text)
+
+
+def _quoting(root: Path, number: int, ref: str, quote: str) -> None:
+    _write(
+        root,
+        f"claims/CLM-{number:04d}-c.md",
+        id=f"CLM-{number:04d}",
+        title="A claim",
+        statement="Rewritten in the assessment's own voice.",
+        source=[{"ref": ref, "quote": quote}],
+        state="asserted",
+        confidence="medium",
+        method="document-review",
+        updated=TODAY,
+    )
+
+
+def test_a_quote_present_in_the_cited_section_is_clean(assessment: Path) -> None:
+    _sourced(
+        assessment, 2, "01-scanning.md",
+        "## Scanning\n\nThe Compliance Operator scans for software flaws and improper"
+        " configurations.\n",
+    )
+    _quoting(
+        assessment, 1, "SRC-0002",
+        "The Compliance Operator scans for software flaws and improper configurations.",
+    )
+    assert "ATO-E310" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+def test_a_quote_edited_after_extraction_is_flagged(assessment: Path) -> None:
+    """Three words dropped from a quote were the three the finding turned on."""
+    _sourced(
+        assessment, 2, "01-scanning.md",
+        "## Scanning\n\nThe Compliance Operator scans for software flaws and improper"
+        " configurations.\n",
+    )
+    _quoting(
+        assessment, 1, "SRC-0002",
+        "The Compliance Operator scans for improper configurations.",
+    )
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E310"]
+    assert findings and findings[0].level == "warn"
+    assert "CLM-0001" in findings[0].message
+
+
+def test_a_quote_is_matched_across_line_wrapping(assessment: Path) -> None:
+    """Extraction de-wraps; the source may not be wrapped the same way."""
+    _sourced(
+        assessment, 2, "01-scanning.md",
+        "## Scanning\n\nThe Compliance Operator scans\nfor software flaws and\nimproper"
+        " configurations.\n",
+    )
+    _quoting(
+        assessment, 1, "SRC-0002",
+        "The Compliance Operator scans for software flaws and improper configurations.",
+    )
+    assert "ATO-E310" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+def test_a_quote_is_checked_against_the_anchored_section_only(assessment: Path) -> None:
+    _sourced(assessment, 2, "01-scanning.md", "## Scanning\n\nScanning happens.\n")
+    (assessment / "sources/SRC-0002-doc" / "02-backup.md").write_text(
+        "## Backup\n\nNightly snapshots are retained.\n"
+    )
+    _quoting(assessment, 1, "SRC-0002#scanning", "Nightly snapshots are retained.")
+    assert "ATO-E310" in codes(validate.validate_repo(assessment, TODAY))
+
+
+def test_a_claim_with_no_quote_is_not_checked(assessment: Path) -> None:
+    _source(assessment, 2)
+    _claim(assessment, 1, "SRC-0002")
+    assert "ATO-E310" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+def test_a_quote_against_a_source_that_does_not_exist_is_not_double_reported(
+    assessment: Path,
+) -> None:
+    """ATO-E112 already says the target is missing; saying it twice is noise."""
+    _quoting(assessment, 1, "SRC-0099", "Anything at all.")
+    found = codes(validate.validate_repo(assessment, TODAY))
+    assert "ATO-E112" in found
+    assert "ATO-E310" not in found

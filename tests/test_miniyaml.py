@@ -181,3 +181,41 @@ def test_rejects_a_plain_scalar_that_real_yaml_would_reject(text: str) -> None:
 )
 def test_still_accepts_a_colon_that_real_yaml_accepts(text: str) -> None:
     assert miniyaml.loads(text)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("owner: the organisation's security team\n", "the organisation's security team"),
+        ("note: it's fine\n", "it's fine"),
+        ("note: says \"hello\" mid-line\n", 'says "hello" mid-line'),
+        ("note: two apostrophes: none\n", None),  # a colon still ends the key
+    ],
+)
+def test_an_apostrophe_inside_a_word_is_not_a_quoted_scalar(
+    text: str, expected: str | None
+) -> None:
+    """A quote character only opens a scalar at the start of one.
+
+    `the organisation's policy` is ordinary prose and extremely common in an assessment;
+    reading the apostrophe as an opening quote made the whole file unparseable.
+    """
+    if expected is None:
+        with pytest.raises(miniyaml.MiniYamlError):
+            miniyaml.loads(text)
+    else:
+        assert list(miniyaml.loads(text).values()) == [expected]
+
+
+def test_a_quoted_scalar_still_works_after_a_key() -> None:
+    assert miniyaml.loads("note: 'properly quoted'\n") == {"note": "properly quoted"}
+
+
+def test_an_apostrophe_does_not_hide_a_comment() -> None:
+    assert miniyaml.loads("note: the team's view  # trailing\n") == {
+        "note": "the team's view"
+    }
+
+
+def test_an_apostrophe_in_a_list_item_is_prose() -> None:
+    assert miniyaml.loads("tags:\n  - the owner's view\n") == {"tags": ["the owner's view"]}

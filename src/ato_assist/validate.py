@@ -408,6 +408,7 @@ def validate_repo(root: Path | str, today: Any = None) -> list[Finding]:
     findings += _sweep_profiles(index)
     findings += _sweep_derivations(index)
     findings += _sweep_classifications(index)
+    findings += _sweep_quotes(index)
     _ = today
     return findings
 
@@ -469,6 +470,69 @@ def _sweep_frameworks(index: Any) -> list[Finding]:
         for item in index.of_kind("controls")
         if str(item.data.get("framework")) not in configured
     ]
+
+
+def _sweep_quotes(index: Any) -> list[Finding]:
+    """Every claim's quote must still be in the section it cites.
+
+    A quote is the one part of a claim that is not the assessor's to write. Rewording a
+    statement is what a good claim looks like; editing the quote while rewording it is how
+    a finding quietly loses the words it turned on — three dropped words were the whole
+    difference between two controls contradicting each other and reconciling, in a real
+    assessment, and nothing caught it but a person re-reading the source.
+
+    Whitespace is normalised on both sides, because extraction de-wraps and the source
+    may be wrapped differently. Anything beyond that — a changed word, a dropped clause —
+    is reported.
+    """
+    findings: list[Finding] = []
+    for item in index.of_kind("claims"):
+        for entry in item.data.get("source") or []:
+            if not isinstance(entry, dict):
+                continue
+            quote, ref = entry.get("quote"), entry.get("ref")
+            if not isinstance(quote, str) or not quote.strip() or not isinstance(ref, str):
+                continue
+            target, _, anchor = ref.partition("#")
+            source = index.items.get(target)
+            if source is None:
+                continue  # ATO-E112 already reports a reference to nothing
+            text = _section_text(index, source, anchor)
+            if text is None or _flatten(quote) in _flatten(text):
+                continue
+            findings.append(_warn(
+                "ATO-E310", item.path, "source",
+                f"{item.id} quotes {quote[:60]!r}, which is not in {ref}",
+                hint="a quote is verbatim; if the wording has to change, the claim has "
+                     "changed and the source needs re-reading",
+            ))
+    return findings
+
+
+def _section_text(index: Any, source: Any, anchor: str) -> str | None:
+    """The text a reference points at: one section if anchored, else the whole source."""
+    directory = (index.root / source.path).parent
+    files = sorted(directory.glob("*.md"))
+    if anchor:
+        files = [
+            path
+            for path in files
+            if any(_slugify(h) == anchor for h in _HEADINGS.findall(_read(path)))
+        ]
+    text = "\n".join(_read(path) for path in files if path.name != "index.md")
+    return text or None
+
+
+def _read(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
+def _flatten(text: str) -> str:
+    """Collapse whitespace, so a de-wrapped quote still matches a wrapped source."""
+    return " ".join(text.split())
 
 
 def _sweep_classifications(index: Any) -> list[Finding]:

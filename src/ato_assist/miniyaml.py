@@ -111,6 +111,16 @@ def _expand(out: list[_Line], no: int, indent: int, content: str) -> None:
     out.append(_Line(no, indent, content))
 
 
+def _opens_quote(text: str, i: int) -> bool:
+    """Whether the quote character at ``i`` starts a quoted scalar.
+
+    A quote only opens a scalar at the beginning of one. Mid-word it is an apostrophe:
+    `the organisation's policy` is prose, and reading that as an opening quote made every
+    file containing an ordinary possessive unparseable.
+    """
+    return text[i] in "\"'" and (i == 0 or text[i - 1] in " \t,[{:-")
+
+
 def _strip_comment(text: str, no: int) -> str:
     """Drop a trailing ``#`` comment. A ``#`` inside quotes, or not preceded by a space,
     is part of the scalar — which is what keeps ``ref: SRC-0007#anchor`` intact."""
@@ -120,7 +130,7 @@ def _strip_comment(text: str, no: int) -> str:
             if char == quote:
                 quote = None
             continue
-        if char in "\"'":
+        if _opens_quote(text, i):
             quote = char
         elif char == "#" and (i == 0 or text[i - 1] in " \t"):
             return text[:i].rstrip()
@@ -257,7 +267,7 @@ def _split_key(text: str, no: int) -> tuple[str, str] | None:
             if char == quote:
                 quote = None
             continue
-        if char in "\"'":
+        if _opens_quote(text, i):
             quote = char
         elif char in "[{":
             return None
@@ -370,7 +380,7 @@ def _inline_token(text: str, i: int, no: int, closer: str) -> tuple[Any, int]:
                 if char == quote:
                     quote = None
                 continue
-            if char in "\"'":
+            if _opens_quote(text, j):
                 quote = char
             elif char in "[{":
                 depth += 1
@@ -388,7 +398,7 @@ def _inline_token(text: str, i: int, no: int, closer: str) -> tuple[Any, int]:
         if quote:
             if char == quote:
                 quote = None
-        elif char in "\"'":
+        elif _opens_quote(text, i):
             quote = char
         elif char in "[{":
             depth += 1

@@ -133,6 +133,11 @@ CLAIM = ItemSchema(
         Field("confidence", enum=CONFIDENCE),
         Field("method", enum=METHOD),
         Field("tags", kind="str-list", required=False),
+        # Provenance, not protection: where a claim came from an extractor's staging
+        # file, naming it lets the sweep ask whether the claim corresponds to something
+        # an extractor actually found. Optional, because a claim the caller wrote from
+        # reading a section directly is equally legitimate.
+        Field("derived_from", required=False),
         *_COMMON,
     ),
     min_one=("source",),

@@ -47,7 +47,11 @@ Each extractor replies with a staging path and counts. Before you write a single
 
 - **Read the reply for a truncation marker.** `[result truncated ...]` means the result is incomplete, not that it is the whole set. Treat it as a failed dispatch: ask the agent for the rest, or re-dispatch that batch smaller.
 - **Open the staging file and check it parses**, and that its candidate count matches what the reply claimed.
-- **Say plainly if a batch is incomplete.** A partial extraction still cites the source, so `every-source-claimed` will tick and the phase gate will pass on an extraction that quietly dropped half its output. No script can catch that — the count is the only thing that can, and it is yours to check.
+- **Say plainly if a batch is incomplete.** A partial extraction still cites the source, so `every-source-claimed` will tick and the phase gate will pass on an extraction that quietly dropped half its output.
+
+**Why this matters more than it looks.** The contract hook checks the shape of a claim, not its authorship — a well-formed claim citing a real source and a real quote passes every check whether an extractor found it or not, and `ato validate` will report `0 problems` either way. That has been demonstrated with a deliberately fabricated claim, which nothing caught.
+
+So this count check is not bookkeeping against truncation. **It is the only check that the claims in the register correspond to something an extractor actually found.** Nothing downstream will catch a discrepancy, because nothing downstream can see one. Spot-check a few quotes against the sections they cite while you are here; that is the other half of the same defence.
 
 Never move the phase on a run where any batch was truncated or unverified.
 
@@ -86,13 +90,23 @@ source:
 
 That is the whole mechanism for "one claim covers a family". The claim does not list the controls it covers — `/ato-map-controls` has each of those controls cite this claim, and the back-link is derived. References point one way, toward evidence, always.
 
+Where a claim came from an extractor's staging file, record it:
+
+```yaml
+derived_from: .ato/staging/SRC-0007-ac-family.yaml
+```
+
+`ato validate` then checks the artefact exists and contains the claim's **quote** — a question a script can answer, where "who wrote this" is one no hook can. The statement is deliberately not checked: rewriting it in the assessment's own voice is what a well-made claim looks like, and the quote is the one thing that must survive unchanged from document to staging to claim. It is provenance, not protection: anyone who could fabricate a claim could fabricate a staging file. Omit it for a claim you wrote from reading a section directly; that is equally legitimate and is not flagged.
+
 `state: draft` until the assessor has looked at it. `confidence` is about how clearly the document asserts it, not about whether it is true — a crisp assertion in a badly-out-of-date document is still `high` confidence *as an extraction*.
 
 `method: document-review` normally. If the source was handled ad hoc — the index will say so — use `ad-hoc`, and confidence cannot then exceed `medium`.
 
 ### 5. Record the absences
 
-The extractor returns what the document conspicuously does not say. These are not claims. Put them in `notes/absences.md` with their section reference. Several will become RFIs, and some will become risks.
+The extractor returns what the document conspicuously does not say. These are not claims — nothing sourced a claim, which is the point. Put them in `notes/absences.md` with their section reference. Several will become RFIs, and some will become risks.
+
+Keep each absence's basis with it. One found by searching carries the method, the target set, the count, and the false-positive check; one found by reading says so. An absence is an assertion about the whole document, and an assessor challenged on it needs to be able to say how it was established — "we searched for these thirteen products across sixty-one sections and found none" survives a review meeting, "it is not mentioned" does not.
 
 ### 6. Queue the terms, do not chase them
 
@@ -114,6 +128,8 @@ ato commit --kind extract --summary "SRC-0007: 31 claims"
 - Never merge two assertions into one claim because they are adjacent. Different evidence, different claim.
 - Never extract a claim from framework control text, however specific it sounds. "The organisation implements multi-factor authentication" in a requirement box is the catalogue talking.
 - If a source is marked `anchors_unavailable`, it has no sections to cite. Do not extract against it — say so, and offer to prepare the document and re-ingest.
+- Never report an absence a sub-agent found by searching without its method and its false-positive check. An unaudited negative is an assertion with more words, and it will be wrong in the reassuring direction.
+- Never renumber claims. `ato next-id claims` allocates the next free number and a spent number stays spent; renumbering to close gaps repoints every citation to it, silently and validly.
 - Never write claims from a truncated extractor result. Partial output looks exactly like complete output once it is in `claims/`.
 - Never add a field to a claim to record which controls it covers. Controls cite claims, not the reverse.
 - Never write a claim from the interview notes. `notes/system-context.md` has no source and is not a document; it is context, not assertion.

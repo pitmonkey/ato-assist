@@ -55,3 +55,10 @@ def test_outside_a_repository_it_says_so(tmp_path: Path) -> None:
     (tmp_path / "assessment.yaml").write_text("phase: intake\n")
     with pytest.raises(gitops.GitError):
         gitops.commit(tmp_path, "ingest", "x")
+
+
+def test_reviewing_existing_work_is_its_own_step(assessment: Path) -> None:
+    """Moving claims out of draft is the assessor's review, not more extraction."""
+    (assessment / "notes" / "a.md").write_text("x")
+    gitops.commit(assessment, "review", "39 claims accepted, 2 withdrawn")
+    assert log(assessment)[0].startswith("review:")

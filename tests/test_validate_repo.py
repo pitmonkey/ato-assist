@@ -214,3 +214,98 @@ def test_a_framework_with_no_catalogue_is_not_flagged(assessment: Path) -> None:
     path = assessment / "assessment.yaml"
     path.write_text(path.read_text().replace("id: ism", "id: e8"))
     assert "ATO-E305" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+# --- provenance: a claim may name the staging artefact it came from -------------------
+# --- provenance: a claim may name the staging artefact it came from -------------------
+
+
+def _staged(root: Path, name: str, quotes: list[str]) -> None:
+    path = root / ".ato" / "staging" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = "".join(f'  - quote: "{q}"\n    refs: [SRC-0001]\n' for q in quotes)
+    path.write_text(f"candidates:\n{body}")
+
+
+def _claim_from(
+    root: Path, number: int, statement: str, quote: str, derived_from: str
+) -> Path:
+    return _write(
+        root,
+        f"claims/CLM-{number:04d}-c.md",
+        id=f"CLM-{number:04d}",
+        title="A claim",
+        statement=statement,
+        source=[{"ref": "SRC-0001", "quote": quote}],
+        state="asserted",
+        confidence="medium",
+        method="document-review",
+        derived_from=derived_from,
+        updated=TODAY,
+    )
+
+
+def test_a_claim_whose_quote_is_in_its_staging_artefact_is_clean(assessment: Path) -> None:
+    """A statement rewritten in the assessment's voice is the normal case, not a defect.
+
+    Matching on the statement would warn on well-made claims and stay silent on lazily
+    copied ones. The quote is the thing that must survive unchanged.
+    """
+    _staged(assessment, "SRC-0001-ac.yaml", ["All privileged access requires MFA."])
+    _claim_from(
+        assessment,
+        1,
+        "Privileged access to the management plane is MFA-protected.",
+        "All privileged access requires MFA.",
+        ".ato/staging/SRC-0001-ac.yaml",
+    )
+    found = codes(validate.validate_repo(assessment, TODAY))
+    assert "ATO-E307" not in found
+    assert "ATO-E308" not in found
+
+
+def test_a_claim_whose_staging_artefact_is_gone_warns(assessment: Path) -> None:
+    _claim_from(assessment, 1, "Anything.", "A quote.", ".ato/staging/absent.yaml")
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E307"]
+    assert findings and findings[0].level == "warn"
+
+
+def test_a_quote_absent_from_the_artefact_it_names_warns(assessment: Path) -> None:
+    _staged(assessment, "SRC-0001-ac.yaml", ["Something else entirely."])
+    _claim_from(
+        assessment,
+        1,
+        "Privileged access is MFA-protected.",
+        "All privileged access requires MFA.",
+        ".ato/staging/SRC-0001-ac.yaml",
+    )
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E308"]
+    assert findings and findings[0].level == "warn"
+    assert "CLM-0001" in findings[0].message
+
+
+def test_a_derivation_with_nothing_to_check_against_is_silent(assessment: Path) -> None:
+    """No quote means no chain to verify. Silence is honest; a warning would not be."""
+    _write(
+        assessment,
+        "claims/CLM-0001-c.md",
+        id="CLM-0001",
+        title="A claim",
+        statement="Asserted.",
+        source=[{"ref": "SRC-0001"}],
+        state="asserted",
+        confidence="medium",
+        method="document-review",
+        derived_from=".ato/staging/SRC-0001-ac.yaml",
+        updated=TODAY,
+    )
+    _staged(assessment, "SRC-0001-ac.yaml", ["Anything."])
+    assert "ATO-E308" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+def test_a_claim_with_no_derivation_is_not_flagged(assessment: Path) -> None:
+    """A claim the caller wrote from reading a section directly is legitimate."""
+    _claim(assessment, 1, "SRC-0001")
+    codes_found = codes(validate.validate_repo(assessment, TODAY))
+    assert "ATO-E307" not in codes_found
+    assert "ATO-E308" not in codes_found

@@ -79,6 +79,10 @@ The only venv is `.venv` in this repo, development-only, managed by `uv`: pytest
 
 Treat `tools:` and `disallowedTools:` frontmatter as **documentation of intent, never as a control**. Field testing found agents declared `tools: [Read, Grep, Glob]` writing files to disk, and `disallowedTools: Bash` not preventing a shell. Whether that is universal or particular to one harness, a confinement that depends on the declaration being honoured is a confinement that might not be there.
 
+**Measured, on one harness: neither `agent_type` nor `agent_id` is populated on a sub-agent's PreToolUse payload.** A dispatched `extractor` used Bash, wrote to staging, wrote a well-formed claim straight into `claims/`, and wrote to `notes/` — four for four, no code emitted. `ATO-E002` and `ATO-E003` are therefore **inert here**. They are kept because they are correct wherever identity is populated and would have to be rebuilt otherwise, not because they are protecting anything today. Do not describe them as protection without checking the payload first.
+
+The schema gate does still fire on sub-agent writes — the same probe was blocked by `ATO-E101` when the file had no frontmatter. What is missing is only the ability to say who wrote a conformant one.
+
 The honest limit of the hook version: it acts on the identity the payload carries. A named confined agent is scoped; a subagent named only by `agent_id` is refused on the contract directories (`ATO-E003`), because "some subagent" does not answer "who wrote this claim"; a payload with no identity at all is treated as the main conversation. That last case is also what a harness populating nothing looks like — where that is true, the schema gate is all that stands, and it checks a file's shape, not its authorship. Do not describe it as containment.
 
 **Hook scripts** — house envelope, non-negotiable: never raise, never block by accident, always exit 0. The only intentional non-pass outcome is a structured JSON `permissionDecision: "deny"`. Wrap `main()` in `try/except Exception: pass` and `sys.exit(0)`.

@@ -287,3 +287,24 @@ def test_a_filename_outside_the_naming_convention_is_e122(path: str) -> None:
 
 def test_a_readme_explaining_a_contract_directory_is_not_an_item() -> None:
     assert validate.validate_document("claims/README.md", "# `claims/`\n\nWhat goes here.\n") == []
+
+
+def test_a_draft_risk_may_wait_for_the_assessors_rating() -> None:
+    """The rating is the assessor's judgement, so a draft must be fileable without one."""
+    text = (
+        VALID_RISK.replace("likelihood: possible\n", "")
+        .replace("impact: major\n", "")
+        .replace("state: accepted", "state: draft")
+        .replace("owner: System owner\n", "")
+        .replace("disposition: Accepted pending Q4 remediation\n", "")
+    )
+    assert validate.validate_document("risks/RSK-0001-privileged.md", text) == []
+
+
+def test_a_risk_leaving_draft_needs_its_rating() -> None:
+    text = VALID_RISK.replace("likelihood: possible\n", "").replace(
+        "state: accepted", "state: open"
+    ).replace("disposition: Accepted pending Q4 remediation\n", "")
+    findings = validate.validate_document("risks/RSK-0001-privileged.md", text)
+    assert [f.code for f in findings] == ["ATO-E102"]
+    assert findings[0].field == "likelihood"

@@ -355,3 +355,24 @@ def test_the_fraction_grows_as_criteria_become_applicable(assessment: Path) -> N
     assert "phase: claims-extraction (2/3)" in text
     assert "[ ] every-source-claimed" in text
     assert "[x] no-draft-claims" in text
+
+
+def test_an_unrated_draft_risk_is_reported_without_an_alarm(assessment: Path) -> None:
+    add(
+        assessment,
+        "risks/RSK-0001-r.md",
+        id="RSK-0001",
+        title="Awaiting the assessor",
+        statement="Something.",
+        threat="T",
+        vulnerability="V",
+        consequence="C",
+        refs=["CLM-0001"],
+        state="draft",
+        updated=TODAY,
+    )
+    line = next(
+        ln for ln in status.render(assessment, TODAY).splitlines() if "RSK-0001" in ln
+    )
+    assert "not been rated" in line
+    assert "!!" not in line

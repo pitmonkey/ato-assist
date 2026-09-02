@@ -213,8 +213,13 @@ RISK = ItemSchema(
         Field("threat"),
         Field("vulnerability"),
         Field("consequence"),
-        Field("likelihood"),  # enum comes from config/risk-matrix.yaml, checked repo-wide
-        Field("impact"),
+        # The rating is the assessor's judgement and nobody else's, so a draft has to be
+        # fileable without one: an agent decomposes the threat, vulnerability, consequence
+        # and references, and the two fields the assessor owns stay empty until they are
+        # in the room. Required from `open` onwards, like owner. Values come from
+        # config/risk-matrix.yaml and are checked repo-wide.
+        Field("likelihood", required=False),
+        Field("impact", required=False),
         Field("refs", kind="id-list", ref_pattern=ANY_ID),
         Field("state", enum=("draft", "open", "mitigating", "accepted", "closed")),
         Field("owner", required=False),
@@ -226,6 +231,8 @@ RISK = ItemSchema(
     required_when=(
         RequiredWhen("owner", "state", ("open", "mitigating", "accepted", "closed")),
         RequiredWhen("disposition", "state", ("accepted",)),
+        RequiredWhen("likelihood", "state", ("open", "mitigating", "accepted", "closed")),
+        RequiredWhen("impact", "state", ("open", "mitigating", "accepted", "closed")),
     ),
 )
 

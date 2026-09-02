@@ -479,3 +479,21 @@ def test_the_assessor_recorded_as_the_system_owner_is_flagged(assessment: Path) 
 
 def test_a_distinct_owner_and_assessor_are_not_flagged(assessment: Path) -> None:
     assert "ATO-E311" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+def test_an_unrated_draft_risk_is_not_reported_as_off_the_scales(assessment: Path) -> None:
+    """ATO-E303 is for a rating the matrix does not have, not for the absence of one."""
+    _write(
+        assessment,
+        "risks/RSK-0001-r.md",
+        id="RSK-0001",
+        title="Awaiting the assessor",
+        statement="Something.",
+        threat="T",
+        vulnerability="V",
+        consequence="C",
+        refs=["CLM-0001"],
+        state="draft",
+        updated=TODAY,
+    )
+    assert "ATO-E303" not in codes(validate.validate_repo(assessment, TODAY))

@@ -142,7 +142,10 @@ def _coverage_block(index: RepoIndex, today: datetime.date) -> list[str]:
         note = ("   " + _tally(severities)) if severities else ""
         lines.append(f"  risks      {sum(risks.values()):<4} " + _tally(risks) + note)
         for identifier, problem in unrated:
-            lines.append(f"             !! {identifier}: {problem}")
+            # A draft nobody has rated yet is the normal state of new risk work, not a
+            # defect; only a rating the matrix cannot read gets the alarm.
+            mark = "  " if "not been rated" in problem else "!!"
+            lines.append(f"             {mark} {identifier}: {problem}")
         for path in _accepted_without_rationale(index):
             lines.append(f"             !! {path} accepted with no disposition")
     return [*lines, ""] if len(lines) > 1 else []

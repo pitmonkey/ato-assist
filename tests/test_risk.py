@@ -110,3 +110,34 @@ def test_a_risk_using_a_scale_the_matrix_does_not_have_is_reported(
     rated = risk.rate_all(assessment)
     assert rated[0].severity is None
     assert "quite likely" in rated[0].problem
+
+
+def _draft(root: Path, number: int, **overrides: object) -> None:
+    from ato_assist import frontmatter
+
+    fields: dict[str, object] = {
+        "id": f"RSK-{number:04d}",
+        "title": "Awaiting the assessor",
+        "statement": "Something could happen.",
+        "threat": "T",
+        "vulnerability": "V",
+        "consequence": "C",
+        "refs": ["CLM-0001"],
+        "state": "draft",
+        "updated": "2026-09-02",
+    }
+    fields.update(overrides)
+    (root / "risks" / f"RSK-{number:04d}-r.md").write_text(frontmatter.render(fields, ""))
+
+
+def test_a_draft_awaiting_a_rating_is_reported_as_awaiting_one(assessment: Path) -> None:
+    """Not "off the matrix scales" — nobody has rated it yet, which is a different thing."""
+    _draft(assessment, 1)
+    rated = risk.rate_all(assessment)
+    assert rated[0].severity is None
+    assert "not been rated" in rated[0].problem
+
+
+def test_a_draft_rated_off_the_scales_still_says_so(assessment: Path) -> None:
+    _draft(assessment, 1, likelihood="quite likely", impact="major")
+    assert "not on the matrix scales" in risk.rate_all(assessment)[0].problem

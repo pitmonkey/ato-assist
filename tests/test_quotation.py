@@ -87,3 +87,52 @@ def test_contains_still_notices_a_missing_clause() -> None:
     assert not quotation.contains(
         chunk, "The Compliance Operator scans for improper configurations."
     )
+
+
+def test_a_separator_with_an_empty_cell_to_its_left_is_a_cell_wall() -> None:
+    """Pandoc repeats every column separator on a wrapped cell's continuation lines.
+
+    A pipe with nothing but whitespace between it and the start of the line cannot be
+    punctuation: there is no sentence to its left for it to punctuate.
+    """
+    chunk = (
+        "|                | nodes. The API servers do not support retaining audit logs  |\n"
+        "|                | for at least a defined number of days.                      |\n"
+    )
+    assert quotation.flatten(chunk) == (
+        "nodes. The API servers do not support retaining audit logs for at least a "
+        "defined number of days."
+    )
+
+
+def test_a_control_narrative_beside_its_label_reads_as_one_sentence() -> None:
+    """The normal shape here: a label in column one, prose wrapped in column two."""
+    chunk = (
+        "| **Part a**     | The organisation offloads audit logs from the cluster to a   |\n"
+        "|                | central store within one day.                               |\n"
+    )
+    assert quotation.contains(
+        chunk,
+        "The organisation offloads audit logs from the cluster to a central store within one day.",
+    )
+
+
+def test_several_empty_leading_cells_are_all_walls() -> None:
+    assert quotation.flatten("|   |   | the text |") == "the text"
+
+
+def test_a_pipe_after_real_content_is_still_left_alone() -> None:
+    """The ambiguous case is unchanged: this could be a column break or prose."""
+    assert quotation.flatten("| Role | Name |") == "Role | Name"
+
+
+def test_prose_beginning_with_a_pipe_is_not_eaten() -> None:
+    assert quotation.flatten("Use a | b to pipe.") == "Use a | b to pipe."
+
+
+def test_a_quote_spanning_two_columns_of_one_row_still_does_not_match() -> None:
+    """Not a sentence the document contains. Such a claim cites both cells instead."""
+    chunk = "| Not applicable | The control is inherited from the platform. |"
+    assert not quotation.contains(
+        chunk, "Not applicable The control is inherited from the platform."
+    )

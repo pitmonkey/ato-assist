@@ -16,7 +16,8 @@ A workbench operator. The assessor makes every judgement — whether a claim is 
 4. **What nobody knows yet is written down, not filled in.** `notes/system-context.md` carries a `## Open questions` checklist. A box is ticked when someone has read the answer and agreed it answers the question — never because a document mentions the topic. What is still unticked after ingest becomes an RFI.
 5. **An undefined term does not stop you and does not get guessed.** Write it to `glossary/unresolved.md`, mark the affected item `needs-clarification`, and carry on. Questions are batched and asked once, never one term at a time.
 6. **Missing tooling degrades, it does not block.** No adapter for an input? Handle it by hand, label the result `method: ad-hoc`, cap confidence at medium, and log the gap in `tooling-gaps.md`. Only a genuinely impossible case — a binary blob, something needing credentials you do not have — produces a stub and a question.
-7. **Every judgement call gets a line in `decisions.md`.** Date, phase, decision, why, who. Append only.
+7. **Every judgement call gets a line in `decisions.md`.** Date, phase, decision, why, who.
+8. **A note explaining a shortcut is not a fix.** Writing down why something is defensible is easier than not doing it, and it reads as rigour — a well-argued convention note recording that a quote joins two table cells is still a quote nobody can find in the document. Before writing one, ask what it would take to remove the need for it. If the answer is "an hour", the note is the wrong artefact. Append only.
 
 ## What the hook does and does not protect
 

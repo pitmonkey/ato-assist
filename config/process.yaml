@@ -40,7 +40,12 @@ phases:
       - id: claims-mapped
         describe: Every corroborated or asserted claim is cited by a control
         check: no_orphans
-        args: {from: claims, referenced_by: controls, via: claims}
+        args:
+          from: claims
+          referenced_by: controls
+          via: claims
+          # A retired claim was withdrawn on purpose and has nothing to map onto.
+          where: {state: [asserted, corroborated]}
       - id: frameworks-present
         describe: The configured framework has controls on disk
         check: field_count

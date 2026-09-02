@@ -261,3 +261,51 @@ def test_age_max_over_nothing_is_not_yet_applicable(assessment: Path) -> None:
 
 def test_file_exists_is_always_applicable(assessment: Path) -> None:
     assert run(assessment, "file_exists", path="notes/anything.md").applicable is True
+
+
+def test_a_where_clause_may_name_several_acceptable_values(assessment: Path) -> None:
+    """"Corroborated or asserted" is two states, and a filter has to be able to say so."""
+    claim(assessment, 1, state="asserted")
+    claim(assessment, 2, state="corroborated")
+    claim(assessment, 3, state="retired")
+    add(
+        assessment,
+        "controls/ism/ISM-0421.md",
+        id="ISM-0421",
+        framework="ism",
+        title="A control",
+        status="satisfied",
+        claims=["CLM-0001", "CLM-0002"],
+        confidence="medium",
+        method="document-review",
+        updated=TODAY,
+    )
+    result = run(
+        assessment,
+        "no_orphans",
+        **{
+            "from": "claims",
+            "referenced_by": "controls",
+            "via": "claims",
+            "where": {"state": ["asserted", "corroborated"]},
+        },
+    )
+    assert result.passed is True
+    assert result.offenders == []  # the retired claim is not an orphan
+
+
+def test_a_retired_claim_is_not_an_orphan(assessment: Path) -> None:
+    """A claim withdrawn as a duplicate has nothing to be mapped onto."""
+    claim(assessment, 1, state="retired")
+    result = run(
+        assessment,
+        "no_orphans",
+        **{
+            "from": "claims",
+            "referenced_by": "controls",
+            "via": "claims",
+            "where": {"state": ["asserted", "corroborated"]},
+        },
+    )
+    assert result.applicable is False  # nothing live to check
+    assert result.offenders == []

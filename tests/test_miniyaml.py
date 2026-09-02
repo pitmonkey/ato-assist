@@ -147,3 +147,37 @@ def test_rejects_ambiguous_boolean_like_scalars() -> None:
     with pytest.raises(miniyaml.MiniYamlError) as excinfo:
         miniyaml.loads("retain: yes\n")
     assert "ambiguous" in str(excinfo.value).lower()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "title: AU-12: OpenShift auditing enabled by default\n",
+        "title: ends with a colon:\n",
+        "statement: The rule is: quote it\n",
+        "  - ref: SRC-0001\n    quote: He said: hello\n",
+    ],
+)
+def test_rejects_a_plain_scalar_that_real_yaml_would_reject(text: str) -> None:
+    """Being more permissive than YAML is a bug, not a kindness.
+
+    A file this parser accepts and PyYAML rejects is a file the contract calls
+    integrable and no other tool can read.
+    """
+    with pytest.raises(miniyaml.MiniYamlError) as excinfo:
+        miniyaml.loads("root:\n" + text if text.startswith(" ") else text)
+    assert "quote" in str(excinfo.value).lower()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "data: OFFICIAL:Sensitive\n",
+        'title: "AU-12: quoted is fine"\n',
+        "title: 'AU-12: single quotes too'\n",
+        "ref: SRC-0007#anchor\n",
+        "url: https://example.gov.au/ism\n",
+    ],
+)
+def test_still_accepts_a_colon_that_real_yaml_accepts(text: str) -> None:
+    assert miniyaml.loads(text)

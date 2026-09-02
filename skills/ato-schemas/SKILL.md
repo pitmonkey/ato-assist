@@ -93,3 +93,14 @@ The fix for `ATO-E110` is to find the reference, never to reword the entry.
 ## The YAML subset
 
 Block maps and sequences, inline `[a, b]` and `{a: b}`, quoted and bare scalars, `|` and `>` blocks, `#` comments, and typed scalars (int, float, `true`/`false`, `null`, `YYYY-MM-DD`). Not supported, and rejected with a line number: anchors and aliases, multiple documents, explicit tags, tab indentation, timestamps with a time part, and `yes`/`no`/`on`/`off` as booleans — quote those.
+
+**Quote any value containing a colon followed by a space, or ending in one.** A control title is exactly where this bites:
+
+```yaml
+title: "AU-12: OpenShift auditing enabled by default"    # correct
+title: AU-12: OpenShift auditing enabled by default      # rejected
+```
+
+Unquoted, that is not valid YAML — a real parser reads the second colon as starting a nested mapping and fails. `OFFICIAL:Sensitive` and `SRC-0007#anchor` are fine, because the colon there is not followed by a space.
+
+The subset is deliberately no more permissive than YAML itself. A file this plugin accepts must be readable by any YAML tool, or the contract's promise that a conformant file is an integration is worth nothing.

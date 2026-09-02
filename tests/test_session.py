@@ -67,9 +67,13 @@ def test_the_first_session_says_so(assessment: Path) -> None:
     assert "first session" in session.brief(assessment)
 
 
-def test_reports_files_waiting_in_the_inbox(assessment: Path) -> None:
+def test_carries_the_derived_status_rather_than_a_second_account_of_it(
+    assessment: Path,
+) -> None:
     (assessment / "inbox" / "ssp-v2.4.pdf").write_text("x")
-    assert "1 file waiting in inbox" in session.brief(assessment)
+    brief = session.brief(assessment)
+    assert "EXIT CRITERIA" in brief
+    assert "1 file waiting" in brief
 
 
 def test_a_broken_assessment_still_produces_a_brief(assessment: Path) -> None:

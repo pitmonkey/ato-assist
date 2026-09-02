@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 from .repo import find_root_from, load_assessment
+from .status import render
 
 __all__ = ["brief"]
 
@@ -30,7 +31,7 @@ def brief(cwd: Path | str, now_iso: str | None = None) -> str:
     _record_session(root, now)
 
     assessment = load_assessment(root)
-    sections = [_headline(assessment), "", _since(previous, now), _inbox(root), ""]
+    sections = [_headline(assessment), "", _since(previous, now), "", _status(root)]
     sections += [_glossary()]
     glossary_path = root / "glossary.md"
     local = glossary_path.read_text(encoding="utf-8") if glossary_path.is_file() else ""
@@ -68,15 +69,13 @@ def _since(previous: datetime.datetime | None, now: datetime.datetime) -> str:
     return f"Last session {days}d ago." if days else "Last session earlier today."
 
 
-def _inbox(root: Path) -> str:
-    inbox = root / "inbox"
-    if not inbox.is_dir():
+def _status(root: Path) -> str:
+    """The derived status, verbatim. The session opens with the same screen `ato status`
+    prints, so there is never a second, staler account of where things stand."""
+    try:
+        return render(root)
+    except Exception:  # a brief is a convenience; never let it break a session
         return ""
-    waiting = [p for p in inbox.iterdir() if p.is_file() and p.name != "README.md"]
-    if not waiting:
-        return ""
-    plural = "s" if len(waiting) != 1 else ""
-    return f"{len(waiting)} file{plural} waiting in inbox — run /ato-ingest."
 
 
 def _glossary() -> str:

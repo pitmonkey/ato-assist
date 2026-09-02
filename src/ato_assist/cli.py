@@ -17,6 +17,8 @@ from .ingest import run as ingest_run
 from .repo import find_root_from
 from .scaffold import ScaffoldError, Spec, create
 from .schema import SCHEMAS
+from .status import render as status_render
+from .status import summary as status_summary
 from .validate import Finding, schema_for_path, validate_document
 
 __all__ = ["main"]
@@ -33,6 +35,7 @@ def main(argv: list[str] | None = None) -> int:
         "validate": _validate,
         "next-id": _next_id,
         "ingest": _ingest,
+        "status": _status,
     }[args.command]
     return handler(args)
 
@@ -58,6 +61,10 @@ def _parser() -> argparse.ArgumentParser:
     check = sub.add_parser("validate", help="validate an assessment against the contract")
     check.add_argument("root", nargs="?", default=".")
     check.add_argument("--json", action="store_true", dest="as_json")
+
+    show = sub.add_parser("status", help="where the assessment stands, derived from files")
+    show.add_argument("root", nargs="?", default=".")
+    show.add_argument("--json", action="store_true", dest="as_json")
 
     take = sub.add_parser("ingest", help="process inbox/ into sources/")
     take.add_argument("root", nargs="?", default=".")
@@ -122,6 +129,18 @@ def _validate_one(root: Path, path: Path) -> list[Finding]:
     except (OSError, UnicodeDecodeError) as exc:
         return [Finding("error", "ATO-E100", relative, None, f"unreadable: {exc}")]
     return validate_document(relative, text)
+
+
+def _status(args: argparse.Namespace) -> int:
+    root = find_root_from(args.root)
+    if root is None:
+        print(f"{args.root} is not inside an assessment", file=sys.stderr)
+        return 2
+    if args.as_json:
+        print(json.dumps(status_summary(root), indent=2, default=str))
+    else:
+        print(status_render(root), end="")
+    return 0
 
 
 def _ingest(args: argparse.Namespace) -> int:

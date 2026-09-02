@@ -38,7 +38,11 @@ class Matrix(NamedTuple):
         return row.get(str(impact))
 
     def rank(self, severity: str) -> int:
-        """Where a severity sits, for sorting a register. Unknown sorts lowest."""
+        """Where a severity sits on the configured scale. Unknown is -1.
+
+        Callers must not use -1 as "least severe": an unrated risk is unfinished work, and
+        `rate_all` sorts it above everything rated rather than below.
+        """
         try:
             return self.severities.index(severity)
         except ValueError:
@@ -117,4 +121,10 @@ def rate_all(root: Path | str) -> list[RatedRisk]:
                 path=path.relative_to(root).as_posix(),
             )
         )
-    return sorted(rated, key=lambda entry: -matrix.rank(entry.severity or ""))
+    # Unrated first, then rated worst-first. An unrated risk is outstanding work rather
+    # than a low severity, and it has no defined position in a worst-first order — putting
+    # it last makes the register imply it is the least severe, which is the one inference
+    # it cannot support. A board reads top-down; unfinished business belongs there.
+    return sorted(
+        rated, key=lambda entry: (entry.severity is not None, -matrix.rank(entry.severity or ""))
+    )

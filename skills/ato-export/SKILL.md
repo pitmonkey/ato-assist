@@ -44,7 +44,9 @@ ato export register
 ato export report
 ```
 
-Everything lands in `outputs/`, worst risk first, with the assessment marking on the first line of every file.
+Everything lands in `outputs/` with the assessment marking on the first line of every file.
+
+**Unrated risks come first, then the rated ones worst-first.** An unrated risk is outstanding work rather than a low severity; sorting it to the bottom would make the register imply it is the least severe, which is the one thing it cannot support. If the top of a register is a block of unrated rows, that is the register reporting accurately that the assessment is not finished.
 
 ### 3. Write the prose, do not invent the numbers
 

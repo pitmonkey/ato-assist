@@ -141,3 +141,65 @@ def test_a_draft_awaiting_a_rating_is_reported_as_awaiting_one(assessment: Path)
 def test_a_draft_rated_off_the_scales_still_says_so(assessment: Path) -> None:
     _draft(assessment, 1, likelihood="quite likely", impact="major")
     assert "not on the matrix scales" in risk.rate_all(assessment)[0].problem
+
+
+def test_an_unrated_risk_sorts_above_the_rated_ones(assessment: Path) -> None:
+    """Unrated is outstanding work, not low severity.
+
+    In a worst-first order an unrated risk has no defined position, and putting it last
+    makes the register quietly imply it is the least severe — the one inference it cannot
+    support. It is work the assessor has not done yet, so it goes at the top.
+    """
+    from ato_assist import frontmatter
+
+    def write(number: int, **fields: object) -> None:
+        base: dict[str, object] = {
+            "id": f"RSK-{number:04d}",
+            "title": f"Risk {number}",
+            "statement": "Something.",
+            "threat": "T",
+            "vulnerability": "V",
+            "consequence": "C",
+            "refs": ["CLM-0001"],
+            "state": "draft",
+            "updated": "2026-09-02",
+        }
+        base.update(fields)
+        (assessment / "risks" / f"RSK-{number:04d}-r.md").write_text(
+            frontmatter.render(base, "")
+        )
+
+    write(1, likelihood="likely", impact="severe", state="open", owner="o")
+    write(2, likelihood="rare", impact="minor", state="open", owner="o")
+    write(3)  # unrated
+    assert [entry.id for entry in risk.rate_all(assessment)] == [
+        "RSK-0003",
+        "RSK-0001",
+        "RSK-0002",
+    ]
+
+
+def test_a_rating_the_matrix_cannot_read_also_sorts_to_the_top(assessment: Path) -> None:
+    """Both kinds of unrated are unfinished business; neither is a severity."""
+    _risk_off_scale = {
+        "id": "RSK-0001",
+        "title": "Off the scales",
+        "statement": "Something.",
+        "threat": "T",
+        "vulnerability": "V",
+        "consequence": "C",
+        "likelihood": "quite likely",
+        "impact": "severe",
+        "refs": ["CLM-0001"],
+        "state": "draft",
+        "updated": "2026-09-02",
+    }
+    from ato_assist import frontmatter
+
+    (assessment / "risks" / "RSK-0001-r.md").write_text(
+        frontmatter.render(_risk_off_scale, "")
+    )
+    (assessment / "risks" / "RSK-0002-r.md").write_text(
+        frontmatter.render({**_risk_off_scale, "id": "RSK-0002", "likelihood": "likely"}, "")
+    )
+    assert [entry.id for entry in risk.rate_all(assessment)][0] == "RSK-0001"

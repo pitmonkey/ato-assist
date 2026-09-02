@@ -50,6 +50,8 @@ ato risk scales .
 
 Use the scales `risk-matrix.yaml` defines, and use the assessor's words for which one applies. **Never rate a risk yourself.** Likelihood and consequence are the two most consequential judgements in an assessment and they are not yours to make.
 
+**Three fields are the assessor's and only the assessor's: `owner`, `likelihood`, `impact`.** That is the line where your authority stops. Everything a document can establish — the threat, the vulnerability, the consequence, the statement, every reference — you fill in. Everything requiring a judgement about this organisation's tolerance for this outcome, you leave empty and say you have left it. An agent that fills those three has not saved the assessor work, it has made a decision in their name and hidden it in a file.
+
 **A draft may be filed without them.** `likelihood` and `impact` are required only from `state: open` onwards, so the honest thing to do is write the risk complete in every respect you can establish — threat, vulnerability, consequence, statement, references — and leave those two empty for the assessor. `ato risk list` shows such a risk as `has not been rated yet`, which is different from a rating the matrix does not recognise. Do that rather than guessing a rating you intend to correct, and rather than not writing the risk until someone is available.
 
 The severity is derived from the matrix and never written into the file. If you find yourself wanting to type a rating, the matrix is wrong or the scales are — fix the matrix.
@@ -100,3 +102,4 @@ ato commit --kind risk --summary "RSK-0001 raised from ISM-0421"
 - One risk per file. A risk covering four unrelated gaps cannot be treated or accepted as a unit.
 - Never wait for evidence to raise a risk the document already admits. "The control response is planned" is the owner saying it is not in place; an RFI will not make that truer.
 - Never rate a draft to make it look finished. An unrated draft is a question waiting for the assessor; a guessed rating is an answer nobody gave.
+- Never require a risk to cite a claim or a control. A risk about the document cites the document, and a rule demanding otherwise would be satisfied by citing a claim that half-covers it — which makes the traceability worse, not better.

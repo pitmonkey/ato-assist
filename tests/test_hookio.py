@@ -255,3 +255,64 @@ def test_an_edit_is_judged_exactly_as_the_written_file_would_be(
     assert validate.validate_document(relative, reconstructed or "") == validate.validate_document(
         relative, written or ""
     )
+
+
+# --- the extractor's write is scoped by the hook, not by omitting the tool -----------
+
+
+def extractor_write(path: Path, content: str = "candidates: []\n") -> dict[str, Any]:
+    return {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Write",
+        "agent_type": "extractor",
+        "tool_input": {"file_path": str(path), "content": content},
+    }
+
+
+def test_the_extractor_may_write_to_its_staging_area(assessment: Path) -> None:
+    payload = extractor_write(assessment / ".ato" / "staging" / "SRC-0007-ac.yaml")
+    assert hookio.handle_pre(payload) == {}
+
+
+def test_the_extractor_may_not_write_into_the_assessment(assessment: Path) -> None:
+    payload = extractor_write(assessment / "claims" / "CLM-0042-mfa.md", VALID_CLAIM)
+    result = hookio.handle_pre(payload)
+    assert decision(result) == "deny"
+    assert "ATO-E002" in reason(result)
+    assert ".ato/staging" in reason(result)
+
+
+def test_the_extractor_may_not_write_outside_the_assessment_either(
+    assessment: Path, tmp_path: Path
+) -> None:
+    result = hookio.handle_pre(extractor_write(tmp_path / "elsewhere.yaml"))
+    assert decision(result) == "deny"
+    assert "ATO-E002" in reason(result)
+
+
+def test_a_plugin_scoped_agent_name_is_still_the_extractor(assessment: Path) -> None:
+    payload = extractor_write(assessment / "notes" / "sneaky.md")
+    payload["agent_type"] = "ato-assist:extractor"
+    assert decision(hookio.handle_pre(payload)) == "deny"
+
+
+def test_the_scope_does_not_apply_to_anyone_else(assessment: Path) -> None:
+    """The main conversation writes claims; only the extractor is confined to staging."""
+    payload = write_payload(assessment / "claims" / "CLM-0042-mfa.md", VALID_CLAIM)
+    assert hookio.handle_pre(payload) == {}
+
+
+def test_an_edit_by_the_extractor_is_scoped_too(assessment: Path) -> None:
+    target = assessment / "notes" / "existing.md"
+    target.parent.mkdir(exist_ok=True)
+    target.write_text("original\n")
+    payload = {
+        "tool_name": "Edit",
+        "agent_type": "extractor",
+        "tool_input": {
+            "file_path": str(target),
+            "old_string": "original",
+            "new_string": "tampered",
+        },
+    }
+    assert decision(hookio.handle_pre(payload)) == "deny"

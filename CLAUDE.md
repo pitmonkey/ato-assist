@@ -75,6 +75,8 @@ The only venv is `.venv` in this repo, development-only, managed by `uv`: pytest
 - `description` = **triggering conditions only**, no workflow summary — otherwise agents act on the description instead of reading the body. Pack it with concrete trigger phrases and the slash command, and disambiguate against sibling skills.
 - Body: purpose line, numbered `## Procedure`, tables for closed vocabularies, closing `## Guardrails`.
 
+**Sub-agent confinement** — `extractor` and `evidence-checker` may write only under `.ato/staging/`, enforced by the PreToolUse hook rather than by withholding the Write tool. Their output routinely exceeds what a subagent reply can carry (~16 KB, truncated from the end, silently), so they need a write channel; the hook is what keeps that channel from becoming a way into the assessment. A rule the hook enforces holds however an agent is configured.
+
 **Hook scripts** — house envelope, non-negotiable: never raise, never block by accident, always exit 0. The only intentional non-pass outcome is a structured JSON `permissionDecision: "deny"`. Wrap `main()` in `try/except Exception: pass` and `sys.exit(0)`.
 
 **Error codes** — every validator finding carries a stable `ATO-Exxx` code. Codes are greppable and quoted in deny messages; never renumber one.

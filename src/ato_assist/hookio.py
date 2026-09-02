@@ -21,6 +21,14 @@ _DEV_FIXTURES = "/tests/fixtures/"
 _MAX_FINDINGS = 5
 _MAX_REASON = 1500
 
+# The extractor reads large documents and returns structured findings. Its output routinely
+# exceeds what a subagent reply can carry, so it writes to a staging file and returns the
+# path — but it must never touch the assessment itself. That confinement is enforced here
+# rather than by withholding the Write tool, because a rule the hook enforces holds however
+# the agent is configured, and every other rule in this plugin works the same way.
+_CONFINED_AGENTS = {"extractor", "evidence-checker"}
+_STAGING = (".ato", "staging")
+
 
 def candidate_text(tool_name: str, tool_input: dict[str, Any]) -> tuple[str | None, str]:
     """The content a tool call is about to produce, and how certain we are of it.
@@ -57,6 +65,10 @@ def candidate_text(tool_name: str, tool_input: dict[str, Any]) -> tuple[str | No
 
 def handle_pre(payload: dict[str, Any]) -> dict[str, Any]:
     """Decide a PreToolUse call: deny, nudge, or say nothing."""
+    confined = _confinement_breach(payload)
+    if confined:
+        return _deny([confined], "PreToolUse")
+
     located = _locate(payload)
     if located is None:
         return {}
@@ -98,6 +110,33 @@ def handle_post(payload: dict[str, Any]) -> dict[str, Any]:
         rel, text, _index(root)
     )
     return _nudge("PostToolUse", _render(findings)) if findings else {}
+
+
+def _confinement_breach(payload: dict[str, Any]) -> Finding | None:
+    """A confined agent writing anywhere but its staging area."""
+    agent = str(payload.get("agent_type") or "").rsplit(":", 1)[-1]
+    if agent not in _CONFINED_AGENTS:
+        return None
+    tool_input = payload.get("tool_input") or {}
+    if not isinstance(tool_input, dict):
+        return None
+    file_path = tool_input.get("file_path")
+    if not isinstance(file_path, str) or not file_path:
+        return None
+    if _STAGING in _windows(Path(file_path).parts, len(_STAGING)):
+        return None
+    return Finding(
+        "error",
+        "ATO-E002",
+        file_path,
+        None,
+        f"the {agent} agent may only write under .ato/staging/",
+        hint="return the staging path and the counts; the caller writes the assessment",
+    )
+
+
+def _windows(parts: tuple[str, ...], size: int) -> set[tuple[str, ...]]:
+    return {parts[i : i + size] for i in range(max(0, len(parts) - size + 1))}
 
 
 def _index(root: Path) -> Any:

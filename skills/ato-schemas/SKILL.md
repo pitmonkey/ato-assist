@@ -56,6 +56,7 @@ Conditionally required: a risk needs `owner` once it leaves `draft` and `disposi
 | Code | Meaning |
 |---|---|
 | `ATO-E001` | The assessment's classification is incomplete, or the marking is below the data or environment it describes |
+| `ATO-E002` | A confined sub-agent tried to write outside `.ato/staging/`. Extractors and evidence-checkers hand their findings to the caller; only the caller writes the assessment |
 | `ATO-E101` | No frontmatter, or YAML outside the supported subset — the message names the line |
 | `ATO-E102` | A required field is missing, including one required by another field's value |
 | `ATO-E103` | A value is outside a closed enum |

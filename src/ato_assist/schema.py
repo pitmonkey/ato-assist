@@ -109,6 +109,10 @@ SOURCE = ItemSchema(
         Field("received", kind="date"),
         Field("origin"),
         Field("classification", enum=MARKINGS),
+        # Ingest cannot know a document's classification, so it records that the value is
+        # its own default rather than a person's decision. The sweep uses this to tell a
+        # deliberate UNOFFICIAL from one nobody ever looked at.
+        Field("classification_by", enum=("ingest-default", "assessor"), required=False),
         Field("hash"),
         Field("state", enum=("ingested", "superseded")),
         Field("artifact", kind="path-list", required=False),

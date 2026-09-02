@@ -338,3 +338,83 @@ def test_a_short_note_with_no_headings_is_not_flagged(assessment: Path) -> None:
     """A one-paragraph note has no sections and does not need any."""
     drop(assessment, "note.md", "The owner confirmed MFA is enforced.\n")
     assert ingest.run(assessment).unusable == {}
+
+
+# --- a reingest must not unmake a decision a person made -----------------------------
+
+
+def test_reingest_keeps_the_classification_the_assessor_set(assessment: Path) -> None:
+    """The one field on a source that is a judgement rather than a fact about the file."""
+    drop(assessment, "ssp.md")
+    ingest.run(assessment)
+    index = assessment / "sources" / "SRC-0001-ssp" / "index.md"
+    data, body = frontmatter.parse(index.read_text())
+    data["classification"] = "PROTECTED"
+    index.write_text(frontmatter.render(data, body))
+
+    ingest.run(assessment, reingest="SRC-0001")
+    after, _ = frontmatter.parse(
+        (assessment / "sources" / "SRC-0001-ssp" / "index.md").read_text()
+    )
+    assert after["classification"] == "PROTECTED"
+
+
+def test_reingest_keeps_what_the_assessor_wrote_in_the_body(assessment: Path) -> None:
+    drop(assessment, "ssp.md")
+    ingest.run(assessment)
+    index = assessment / "sources" / "SRC-0001-ssp" / "index.md"
+    data, body = frontmatter.parse(index.read_text())
+    index.write_text(frontmatter.render(data, body + "\nPrepared by hand; hash 0f9a.\n"))
+
+    ingest.run(assessment, reingest="SRC-0001")
+    after = (assessment / "sources" / "SRC-0001-ssp" / "index.md").read_text()
+    assert "Prepared by hand; hash 0f9a." in after
+    assert "Retained from the previous ingest" in after
+
+
+def test_reingest_does_not_retain_its_own_boilerplate(assessment: Path) -> None:
+    """An untouched index has nothing worth carrying, and duplicating it is noise."""
+    drop(assessment, "ssp.md")
+    ingest.run(assessment)
+    ingest.run(assessment, reingest="SRC-0001")
+    after = (assessment / "sources" / "SRC-0001-ssp" / "index.md").read_text()
+    assert "Retained from the previous ingest" not in after
+
+
+def test_ingest_records_that_it_chose_the_classification_itself(assessment: Path) -> None:
+    drop(assessment, "ssp.md")
+    ingest.run(assessment)
+    front, _ = frontmatter.parse(
+        (assessment / "sources" / "SRC-0001-ssp" / "index.md").read_text()
+    )
+    assert front["classification"] == "UNOFFICIAL"
+    assert front["classification_by"] == "ingest-default"
+
+
+def test_reingest_keeps_the_assessors_authorship_of_the_classification(
+    assessment: Path,
+) -> None:
+    drop(assessment, "ssp.md")
+    ingest.run(assessment)
+    index = assessment / "sources" / "SRC-0001-ssp" / "index.md"
+    data, body = frontmatter.parse(index.read_text())
+    data["classification"] = "PROTECTED"
+    data["classification_by"] = "assessor"
+    index.write_text(frontmatter.render(data, body))
+
+    ingest.run(assessment, reingest="SRC-0001")
+    after, _ = frontmatter.parse(
+        (assessment / "sources" / "SRC-0001-ssp" / "index.md").read_text()
+    )
+    assert after["classification_by"] == "assessor"
+
+
+def test_reingest_reuses_the_id_so_existing_citations_keep_resolving(
+    assessment: Path,
+) -> None:
+    """A reingest replaces a source in place. A new ID would orphan every claim citing it."""
+    drop(assessment, "ssp.md")
+    ingest.run(assessment)
+    report = ingest.run(assessment, reingest="SRC-0001")
+    assert report.ingested == ["SRC-0001"]
+    assert [p.name for p in sorted((assessment / "sources").glob("SRC-*"))] == ["SRC-0001-ssp"]

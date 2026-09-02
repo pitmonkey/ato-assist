@@ -407,6 +407,7 @@ def validate_repo(root: Path | str, today: Any = None) -> list[Finding]:
     findings += _sweep_frameworks(index)
     findings += _sweep_profiles(index)
     findings += _sweep_derivations(index)
+    findings += _sweep_classifications(index)
     _ = today
     return findings
 
@@ -467,6 +468,32 @@ def _sweep_frameworks(index: Any) -> list[Finding]:
                f"({', '.join(sorted(configured))})")
         for item in index.of_kind("controls")
         if str(item.data.get("framework")) not in configured
+    ]
+
+
+def _sweep_classifications(index: Any) -> list[Finding]:
+    """A source being cited while still carrying the classification ingest guessed at.
+
+    Deliberately not "any source below the assessment's marking": a public standard cited
+    by a PROTECTED assessment is normal, and a warning that fires on the normal case is a
+    warning nobody reads. What is worth flagging is narrower — nobody has looked at this
+    document's marking, and claims are already resting on it.
+    """
+    cited = {
+        target.split("#", 1)[0]
+        for item in index.of_kind("claims")
+        for target in index.refs_of(item, "source")
+    }
+    return [
+        _warn(
+            "ATO-E309", item.path, "classification",
+            f"{item.id} is cited by a claim, and its classification is still the one "
+            "ingest guessed at",
+            hint="set it and record who decided; ingest cannot know what a document is "
+                 "marked",
+        )
+        for item in index.of_kind("sources")
+        if item.id in cited and item.data.get("classification_by") == "ingest-default"
     ]
 
 

@@ -316,3 +316,82 @@ def test_an_edit_by_the_extractor_is_scoped_too(assessment: Path) -> None:
         },
     }
     assert decision(hookio.handle_pre(payload)) == "deny"
+
+
+def test_a_confined_agent_gets_no_shell_at_all(assessment: Path) -> None:
+    """A declaration that is not honoured confines nothing; the hook has to.
+
+    Write and Edit are scoped by path, but a shell is a write channel the path rules
+    never see, so a confined agent does not get one.
+    """
+    payload = {
+        "tool_name": "Bash",
+        "agent_type": "extractor",
+        "tool_input": {"command": "cat > /tmp/out.yaml <<'EOF'\ncandidates: []\nEOF"},
+    }
+    result = hookio.handle_pre(payload)
+    assert decision(result) == "deny"
+    assert "ATO-E002" in reason(result)
+
+
+def test_a_confined_agent_may_still_read_through_its_own_tools(assessment: Path) -> None:
+    payload = {
+        "tool_name": "Read",
+        "agent_type": "extractor",
+        "tool_input": {"file_path": str(assessment / "sources" / "SRC-0007-ssp" / "index.md")},
+    }
+    assert hookio.handle_pre(payload) == {}
+
+
+def test_everyone_else_keeps_their_shell(assessment: Path) -> None:
+    payload = {"tool_name": "Bash", "tool_input": {"command": "ls"}}
+    assert hookio.handle_pre(payload) == {}
+
+
+def test_the_main_conversation_keeps_its_shell_inside_an_assessment(
+    assessment: Path,
+) -> None:
+    payload = {
+        "tool_name": "Bash",
+        "agent_type": "challenger",
+        "tool_input": {"command": f"ato status {assessment}"},
+    }
+    assert hookio.handle_pre(payload) == {}
+
+
+# --- an unidentified writer -----------------------------------------------------------
+
+
+def test_a_subagent_the_hook_cannot_identify_may_not_write_the_assessment(
+    assessment: Path,
+) -> None:
+    """agent_id present, agent_type absent: the harness says a subagent, but not which."""
+    payload = write_payload(assessment / "claims" / "CLM-0042-mfa.md", VALID_CLAIM)
+    payload["agent_id"] = "a1b2c3"
+    result = hookio.handle_pre(payload)
+    assert decision(result) == "deny"
+    assert "ATO-E003" in reason(result)
+
+
+def test_a_named_agent_that_is_not_confined_may_write(assessment: Path) -> None:
+    payload = write_payload(assessment / "claims" / "CLM-0042-mfa.md", VALID_CLAIM)
+    payload["agent_id"] = "a1b2c3"
+    payload["agent_type"] = "general-purpose"
+    assert hookio.handle_pre(payload) == {}
+
+
+def test_an_unidentified_subagent_may_still_write_outside_the_contract(
+    assessment: Path,
+) -> None:
+    payload = write_payload(assessment / "notes" / "scratch.md", "notes\n")
+    payload["agent_id"] = "a1b2c3"
+    assert hookio.handle_pre(payload) == {}
+
+
+def test_the_main_conversation_is_not_treated_as_an_unidentified_subagent(
+    assessment: Path,
+) -> None:
+    """No identity fields at all is the main conversation, which writes the assessment."""
+    assert hookio.handle_pre(
+        write_payload(assessment / "claims" / "CLM-0042-mfa.md", VALID_CLAIM)
+    ) == {}

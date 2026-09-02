@@ -26,7 +26,14 @@ _MAX_REASON = 1500
 # path — but it must never touch the assessment itself. That confinement is enforced here
 # rather than by withholding the Write tool, because a rule the hook enforces holds however
 # the agent is configured, and every other rule in this plugin works the same way.
+#
+# Treat an agent's `tools:` frontmatter as documentation of intent, never as a control:
+# confinement that depends on the declaration being honoured is confinement that might not
+# be there. A shell is the hole in a path-based rule — a heredoc is a write the file_path
+# checks never see — so a confined agent gets no shell at all.
 _CONFINED_AGENTS = {"extractor", "evidence-checker"}
+_CONFINED_TOOLS = {"Bash", "BashOutput", "KillShell"}
+_WRITE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 _STAGING = (".ato", "staging")
 
 
@@ -68,6 +75,8 @@ def handle_pre(payload: dict[str, Any]) -> dict[str, Any]:
     confined = _confinement_breach(payload)
     if confined:
         return _deny([confined], "PreToolUse")
+    if str(payload.get("tool_name")) not in _WRITE_TOOLS:
+        return {}  # the contract governs what is written, not what is read or run
 
     located = _locate(payload)
     if located is None:
@@ -113,10 +122,35 @@ def handle_post(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _confinement_breach(payload: dict[str, Any]) -> Finding | None:
-    """A confined agent writing anywhere but its staging area."""
+    """A confined agent writing anywhere but its staging area.
+
+    Identity comes from the harness, and the honest limit of this control is that it can
+    only act on what the payload says. Three cases:
+
+    * a named confined agent — scoped to staging, and given no shell;
+    * a subagent the harness names only by id — refused on the contract directories,
+      because "some subagent" is not an answer to "who wrote this claim";
+    * no identity at all — the main conversation, which writes the assessment.
+
+    The third case is also what a harness that populates nothing looks like. Where that
+    is true, the schema gate is the only thing standing, and it checks the shape of a
+    file rather than its authorship. Do not mistake it for containment.
+    """
     agent = str(payload.get("agent_type") or "").rsplit(":", 1)[-1]
     if agent not in _CONFINED_AGENTS:
-        return None
+        return _unidentified_writer(payload, agent)
+    tool = str(payload.get("tool_name") or "")
+    if tool in _CONFINED_TOOLS:
+        return Finding(
+            "error",
+            "ATO-E002",
+            tool,
+            None,
+            f"the {agent} agent has no shell; it reads, and writes under .ato/staging/",
+            hint="write the findings to a staging file and return its path",
+        )
+    if tool not in _WRITE_TOOLS:
+        return None  # reading is the whole point of these agents
     tool_input = payload.get("tool_input") or {}
     if not isinstance(tool_input, dict):
         return None
@@ -132,6 +166,36 @@ def _confinement_breach(payload: dict[str, Any]) -> Finding | None:
         None,
         f"the {agent} agent may only write under .ato/staging/",
         hint="return the staging path and the counts; the caller writes the assessment",
+    )
+
+
+def _unidentified_writer(payload: dict[str, Any], agent: str) -> Finding | None:
+    """Refuse a contract write from a subagent the harness declined to name."""
+    if agent or not payload.get("agent_id"):
+        return None  # named, or the main conversation
+    if str(payload.get("tool_name")) not in _WRITE_TOOLS:
+        return None
+    tool_input = payload.get("tool_input") or {}
+    file_path = tool_input.get("file_path") if isinstance(tool_input, dict) else None
+    if not isinstance(file_path, str) or not file_path:
+        return None
+    root = find_root(file_path)
+    if root is None:
+        return None
+    try:
+        within = relative(root, file_path)
+    except ValueError:
+        return None
+    if schema_for_path(within) is None:
+        return None
+    return Finding(
+        "error",
+        "ATO-E003",
+        within,
+        None,
+        "this write comes from a sub-agent the hook cannot identify",
+        hint="hand the findings back and let the caller write them, so the assessment "
+             "has one author it can name",
     )
 
 

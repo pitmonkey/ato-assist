@@ -15,7 +15,15 @@ from typing import Any
 from . import frontmatter
 from .repo import ASSESSMENT_FILE, load_assessment, load_yaml
 
-__all__ = ["TrackingError", "close_rfi", "export_rfis", "next_phase", "open_rfi", "set_phase"]
+__all__ = [
+    "TrackingError",
+    "close_rfi",
+    "export_rfis",
+    "next_phase",
+    "open_rfi",
+    "set_phase",
+    "withdraw_rfi",
+]
 
 
 class TrackingError(RuntimeError):
@@ -119,10 +127,7 @@ def close_rfi(
     root: Path, identifier: str, source: str, today: datetime.date | None = None
 ) -> Path:
     """Close a question with the source that answered it."""
-    matches = sorted((root / "rfi").glob(f"{identifier}-*.md"))
-    if not matches:
-        raise TrackingError(f"{identifier} is not in rfi/")
-    path = matches[0]
+    path = _find_rfi(root, identifier)
     data, body = frontmatter.parse(path.read_text(encoding="utf-8"))
     today = today or datetime.date.today()
     data["state"] = "answered"
@@ -131,6 +136,43 @@ def close_rfi(
     data["updated"] = today
     path.write_text(frontmatter.render(data, body), encoding="utf-8")
     return path
+
+
+def withdraw_rfi(
+    root: Path,
+    identifier: str,
+    reason: str,
+    superseded_by: str | None = None,
+    today: datetime.date | None = None,
+) -> Path:
+    """Retract a question the assessment should not have asked.
+
+    Distinct from closing one, and deliberately so. A closed RFI was answered, and the
+    answer is on file. A withdrawn one was mistaken — asked against an incomplete ingest,
+    or answered by something already in `sources/` that nobody had read — and the record
+    has to say how, or the next person cannot tell a retracted question from a forgotten
+    one. That is why the reason is required here and no reason is required to close.
+    """
+    path = _find_rfi(root, identifier)
+    data, body = frontmatter.parse(path.read_text(encoding="utf-8"))
+    today = today or datetime.date.today()
+    data["state"] = "withdrawn"
+    data["withdrawn_on"] = today
+    data["updated"] = today
+    if superseded_by:
+        data["superseded_by"] = [superseded_by]
+    body = body.rstrip() + f"\n\n## Why this was withdrawn\n\n{reason.strip()}\n"
+    if superseded_by:
+        body += f"\nReplaced by {superseded_by}.\n"
+    path.write_text(frontmatter.render(data, body), encoding="utf-8")
+    return path
+
+
+def _find_rfi(root: Path, identifier: str) -> Path:
+    matches = sorted((root / "rfi").glob(f"{identifier}-*.md"))
+    if not matches:
+        raise TrackingError(f"{identifier} is not in rfi/")
+    return matches[0]
 
 
 def open_rfis(root: Path) -> list[dict[str, Any]]:

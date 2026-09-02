@@ -34,6 +34,8 @@ ato ingest . --reingest SRC-0001
 
 That discards the source and reads the original again, keeping its ID so every claim citing it still resolves, and cleaning up the glossary terms the failed run queued. Never hand-delete a source directory.
 
+**Why a reingest is cheap:** anchors key on a heading's slug, not on its position. A section that keeps its heading keeps its anchor however much moves around it, so recovering two missing appendices in the middle of a document invalidates nothing that cited the sections either side. Do not "improve" anchors into anything positional — numbering, ordinals, section paths — or every reingest becomes a rewrite of every citation.
+
 It carries across what a person decided rather than what ingest worked out — the classification, and anything the assessor wrote in the index body, which comes back under `## Retained from the previous ingest`. Read that section after a reingest: prose written about the *previous* conversion may not describe the new one, and it is yours to reconcile.
 
 **Read the `!` framework lines.** If a document names a framework the assessment is not configured for — an SSP written against NIST 800-53 being assessed against the ISM — ingest says so. That mismatch will otherwise surface at control mapping as apparent non-compliance when the real problem is that the system was documented to a different catalogue. Put it to the assessor now; it is a scoping decision, not a finding.

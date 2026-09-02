@@ -71,7 +71,7 @@ def test_rfi_new_writes_a_tracked_question(
     assert cli.main([
         "rfi", "new", "--root", str(assessment),
         "--question", "Provide the conditional access policy export.",
-        "--asked-of", "System owner", "--reason", "ISM-0421",
+        "--asked-of", "System owner", "--resolves", "ISM-0421",
     ]) == 0
     assert "RFI-0001" in capsys.readouterr().out
     path = assessment / "rfi" / "RFI-0001-provide-the-conditional.md"
@@ -136,3 +136,80 @@ def test_rfi_export_produces_a_message_the_assessor_can_send(
     assert "RFI-0001" in out
     assert "Provide the conditional access policy export." in out
     assert "Example System" in out
+
+
+def test_rfi_withdraw_records_why_the_question_was_wrong(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A withdrawn RFI was not answered; it was mistaken, and the record should say how."""
+    cli.main([
+        "rfi", "new", "--root", str(assessment), "--question", "Where is the diagram?",
+        "--asked-of", "owner",
+    ])
+    capsys.readouterr()
+    assert cli.main([
+        "rfi", "withdraw", "RFI-0001", "--root", str(assessment),
+        "--reason", "Raised against an incomplete ingest; Appendix B lists it as provided.",
+    ]) == 0
+    path = next((assessment / "rfi").glob("RFI-0001-*.md"))
+    data, body = frontmatter.parse(path.read_text())
+    assert data["state"] == "withdrawn"
+    assert data["withdrawn_on"] == TODAY or isinstance(data["withdrawn_on"], object)
+    assert "incomplete ingest" in body
+
+
+def test_rfi_withdraw_will_not_proceed_without_a_reason(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main([
+        "rfi", "new", "--root", str(assessment), "--question", "Where is the diagram?",
+        "--asked-of", "owner",
+    ])
+    capsys.readouterr()
+    assert cli.main(["rfi", "withdraw", "RFI-0001", "--root", str(assessment)]) == 2
+    err = capsys.readouterr().err
+    assert "--reason" in err
+    path = next((assessment / "rfi").glob("RFI-0001-*.md"))
+    assert frontmatter.parse(path.read_text())[0]["state"] == "open"
+
+
+def test_rfi_withdraw_can_point_at_the_question_that_replaced_it(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for question in ("Where is the diagram?", "Which identity provider is deployed?"):
+        cli.main([
+            "rfi", "new", "--root", str(assessment), "--question", question,
+            "--asked-of", "owner",
+        ])
+    capsys.readouterr()
+    cli.main([
+        "rfi", "withdraw", "RFI-0001", "--root", str(assessment),
+        "--reason", "Asked the wrong thing.", "--superseded-by", "RFI-0002",
+    ])
+    path = next((assessment / "rfi").glob("RFI-0001-*.md"))
+    assert frontmatter.parse(path.read_text())[0]["superseded_by"] == ["RFI-0002"]
+
+
+def test_a_withdrawn_rfi_is_no_longer_open(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main([
+        "rfi", "new", "--root", str(assessment), "--question", "Where is the diagram?",
+        "--asked-of", "owner",
+    ])
+    cli.main([
+        "rfi", "withdraw", "RFI-0001", "--root", str(assessment), "--reason", "Mistaken.",
+    ])
+    capsys.readouterr()
+    cli.main(["rfi", "list", "--root", str(assessment)])
+    assert "No requests for information are open." in capsys.readouterr().out
+
+
+def test_withdrawing_something_that_is_not_an_rfi_exits_one(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    capsys.readouterr()
+    assert cli.main([
+        "rfi", "withdraw", "RFI-0099", "--root", str(assessment), "--reason", "x",
+    ]) == 1
+    assert "RFI-0099" in capsys.readouterr().err

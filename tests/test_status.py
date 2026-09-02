@@ -245,3 +245,17 @@ def test_risks_are_counted_by_derived_severity_not_by_a_stored_rating(
 def test_a_risk_rated_off_the_matrix_scales_is_flagged(assessment: Path) -> None:
     _risk(assessment, 1, "quite likely", "severe")
     assert "not on the matrix scales" in status.render(assessment, TODAY)
+
+
+def test_a_file_already_recorded_as_evidence_is_not_waiting_to_be_ingested(
+    assessment: Path,
+) -> None:
+    from ato_assist import cli
+
+    artifact = assessment / "inbox" / "export.json"
+    artifact.write_text("{}")
+    cli.main([
+        "evidence", "add", "--root", str(assessment), "--file", str(artifact),
+        "--describe", "An export", "--bears-on", "CLM-0001",
+    ])
+    assert "waiting" not in status.render(assessment, TODAY)

@@ -7,11 +7,17 @@ count in its head is a skill that will disagree with the file on disk.
 from __future__ import annotations
 
 import argparse
+import datetime
+import hashlib
 import json
 import re
+import shutil
 import sys
 from pathlib import Path
 
+from . import frontmatter
+from .export import ExportError, register_csv, register_xlsx
+from .export import report as build_report
 from .gitops import GitError
 from .gitops import commit as git_commit
 from .ingest import IngestError
@@ -19,6 +25,8 @@ from .ingest import run as ingest_run
 from .oscal import CatalogueError
 from .oscal import load as load_catalogue
 from .repo import find_root_from
+from .risk import MatrixError, rate_all
+from .risk import load as load_matrix
 from .scaffold import ScaffoldError, Spec, create
 from .schema import SCHEMAS
 from .status import render as status_render
@@ -53,6 +61,9 @@ def main(argv: list[str] | None = None) -> int:
         "phase": _phase,
         "rfi": _rfi,
         "commit": _commit,
+        "risk": _risk,
+        "export": _export,
+        "evidence": _evidence,
     }[args.command]
     return handler(args)
 
@@ -105,6 +116,25 @@ def _parser() -> argparse.ArgumentParser:
                      help="a claim, control or risk this unblocks")
     ask.add_argument("--source", help="the source that answered it")
     ask.add_argument("--root", default=".")
+
+    rk = sub.add_parser("risk", help="the risk matrix, and risks rated against it")
+    rk.add_argument("action", choices=("scales", "list"))
+    rk.add_argument("--root", default=".")
+
+    out = sub.add_parser("export", help="regenerate the risk register and report")
+    out.add_argument("what", nargs="?", default="all", choices=("all", "register", "report"))
+    out.add_argument("--root", default=".")
+
+    evi = sub.add_parser("evidence", help="record an artefact as evidence")
+    evi.add_argument("action", choices=("add",))
+    evi.add_argument("--file", required=True, help="the artefact itself")
+    evi.add_argument("--describe", required=True, help="one line: what it is")
+    evi.add_argument("--bears-on", action="append", required=True,
+                     help="a claim ID this bears on; repeatable")
+    evi.add_argument("--direction", default="supports",
+                     choices=("supports", "refutes", "mixed"))
+    evi.add_argument("--collected-by", default="assessor")
+    evi.add_argument("--root", default=".")
 
     save = sub.add_parser("commit", help="commit the assessment with a structured message")
     save.add_argument("--kind", required=True)
@@ -322,6 +352,116 @@ def _rfi(args: argparse.Namespace) -> int:
     if not entries:
         print("No requests for information are open.")
     return 0
+
+
+def _risk(args: argparse.Namespace) -> int:
+    root = find_root_from(args.root)
+    if root is None:
+        print(f"{args.root} is not inside an assessment", file=sys.stderr)
+        return 2
+    try:
+        matrix = load_matrix(root)
+    except MatrixError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    if args.action == "scales":
+        print("likelihood: " + ", ".join(matrix.likelihood))
+        print("impact:     " + ", ".join(matrix.impact))
+        print("ratings:    " + ", ".join(matrix.severities))
+        if matrix.review_required:
+            print("\n!  This matrix is the shipped placeholder. It must be replaced with "
+                  "the organisation's own scales before a register goes to a board.")
+        return 0
+
+    rated = rate_all(root)
+    for entry in rated:
+        severity = entry.severity or f"unrated — {entry.problem}"
+        print(f"{entry.id}  {severity:<10}  {entry.title}")
+    if not rated:
+        print("No risks have been raised.")
+    return 0
+
+
+def _export(args: argparse.Namespace) -> int:
+    root = find_root_from(args.root)
+    if root is None:
+        print(f"{args.root} is not inside an assessment", file=sys.stderr)
+        return 2
+    try:
+        written = []
+        if args.what in ("all", "register"):
+            written.append(register_csv(root))
+            written.append(register_xlsx(root))
+        if args.what in ("all", "report"):
+            written.append(build_report(root))
+    except ExportError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    for path in written:
+        print(f"wrote {path.relative_to(root)}")
+    return 0
+
+
+def _evidence(args: argparse.Namespace) -> int:
+    """The mechanical half of recording evidence, so an adapter is a one-line call.
+
+    Deliberately labelled `method: ad-hoc`: an artefact recorded by hand, with no adapter
+    that understands its format, is exactly what ad-hoc means, and that caps its
+    confidence downstream.
+    """
+    root = find_root_from(args.root)
+    if root is None:
+        print(f"{args.root} is not inside an assessment", file=sys.stderr)
+        return 2
+    artifact = Path(args.file)
+    if not artifact.is_file():
+        print(f"{artifact} is not a readable file", file=sys.stderr)
+        return 2
+
+    identifier = _allocate(root, "evidence", "EVD")
+    stored = root / "evidence" / "artifacts" / f"{identifier}-{artifact.name}"
+    stored.parent.mkdir(parents=True, exist_ok=True)
+    if artifact.resolve() != stored.resolve():
+        shutil.copy2(artifact, stored)
+
+    today = datetime.date.today()
+    data = {
+        "id": identifier,
+        "title": args.describe,
+        "bears_on": list(args.bears_on),
+        "direction": args.direction,
+        "artifact": [stored.relative_to(root).as_posix()],
+        "method": "ad-hoc",
+        "collected": today,
+        "collected_by": args.collected_by,
+        "integrity": f"sha256:{hashlib.sha256(artifact.read_bytes()).hexdigest()}",
+        "state": "draft",
+        "updated": today,
+    }
+    body = (
+        f"Recorded by hand from `{artifact.name}`.\n\n"
+        "No adapter understands this format, so nothing has been read out of it: what it "
+        "shows is the assessor's reading, recorded below.\n\n"
+        "## Assessor note\n\n"
+        "State what this artefact actually demonstrates, and for what scope.\n"
+    )
+    slug = re.sub(r"[^a-z0-9]+", "-", args.describe.lower()).strip("-")[:40] or "artifact"
+    path = root / "evidence" / f"{identifier}-{slug}.md"
+    path.write_text(frontmatter.render(data, body), encoding="utf-8")
+    print(f"{identifier} recorded from {artifact.name}; say what it shows in {path.name}")
+    return 0
+
+
+def _allocate(root: Path, directory: str, prefix: str) -> str:
+    pattern = re.compile(rf"^{prefix}-(\d{{4}})")
+    highest = max(
+        (int(match.group(1))
+         for entry in (root / directory).glob(f"{prefix}-*")
+         if (match := pattern.match(entry.name))),
+        default=0,
+    )
+    return f"{prefix}-{highest + 1:04d}"
 
 
 def _commit(args: argparse.Namespace) -> int:

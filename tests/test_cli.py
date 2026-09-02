@@ -146,3 +146,71 @@ def test_an_unknown_control_exits_one(capsys: pytest.CaptureFixture[str]) -> Non
 def test_controls_reports_the_catalogue_version(capsys: pytest.CaptureFixture[str]) -> None:
     cli.main(["controls", "--profile", "PROTECTED"])
     assert "ISM " in capsys.readouterr().out
+
+
+def test_risk_scales_warns_while_the_matrix_is_a_placeholder(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    capsys.readouterr()
+    assert cli.main(["risk", "scales", "--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "almost-certain" in out
+    assert "placeholder" in out
+
+
+def test_export_writes_the_register_and_the_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    capsys.readouterr()
+    assert cli.main(["export", "--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert "exs-risk-register.csv" in out
+    assert "exs-report.md" in out
+
+
+def test_evidence_add_writes_a_conformant_entry(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from ato_assist import repo, validate
+
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    artifact = tmp_path / "inbox" / "ca-policies.json"
+    artifact.write_text("{}")
+    capsys.readouterr()
+    assert cli.main([
+        "evidence", "add", "--root", str(tmp_path), "--file", str(artifact),
+        "--describe", "Conditional access policy export", "--bears-on", "CLM-0042",
+    ]) == 0
+    assert "EVD-0001" in capsys.readouterr().out
+    path = next((tmp_path / "evidence").glob("EVD-0001-*.md"))
+    relative = repo.relative(tmp_path, path)
+    assert validate.validate_document(relative, path.read_text()) == []
+
+
+def test_evidence_add_records_the_hash_of_what_it_saw(tmp_path: Path) -> None:
+    from ato_assist import frontmatter
+
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    artifact = tmp_path / "inbox" / "scan.json"
+    artifact.write_text("{}")
+    cli.main([
+        "evidence", "add", "--root", str(tmp_path), "--file", str(artifact),
+        "--describe", "A scan", "--bears-on", "CLM-0001",
+    ])
+    data, _ = frontmatter.parse(next((tmp_path / "evidence").glob("EVD-0001-*.md")).read_text())
+    assert str(data["integrity"]).startswith("sha256:")
+    assert data["method"] == "ad-hoc"
+
+
+def test_evidence_add_refuses_a_file_it_cannot_see(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    capsys.readouterr()
+    assert cli.main([
+        "evidence", "add", "--root", str(tmp_path), "--file", str(tmp_path / "absent.json"),
+        "--describe", "x", "--bears-on", "CLM-0001",
+    ]) == 2
+    assert "absent.json" in capsys.readouterr().err

@@ -34,6 +34,20 @@ Run `/ato-init` in an empty directory to scaffold an assessment. `/ato-status` t
 | `/ato-phase` | Show exit criteria; move the phase marker |
 | `/ato-status` | Derived status, one screen |
 | `/ato-export` | Risk register and report skeleton |
+| `/ato-schemas` | The file contract, and what each `ATO-Exxx` denial means |
+
+## The `ato` CLI
+
+Skills call it; so can you. `ato --help` lists everything.
+
+```
+ato init      scaffold an assessment          ato controls  read the ISM catalogue
+ato ingest    inbox/ -> sources/              ato risk      scales, and risks rated
+ato status    where things stand              ato evidence  record an artefact
+ato validate  check against the contract      ato rfi       raise, close, list, export
+ato phase     move the marker                 ato export    register and report
+ato next-id   the next free ID                ato commit    a structured commit
+```
 
 ## The file contract
 

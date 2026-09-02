@@ -1,0 +1,11 @@
+{
+  "name": "ato-loose-evidence",
+  "description": "Reference adapter for ato-assist. Records an arbitrary file plus a one-line description as a conformant evidence entry, demonstrating that the assessment file contract is the whole integration surface.",
+  "version": "0.1.0",
+  "author": {
+    "name": "pitmonkey",
+    "email": "pitmonkey@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "keywords": ["security", "ato", "evidence", "adapter"]
+}

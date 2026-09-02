@@ -38,6 +38,8 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 # The bare try/except/pass envelope is the point in a hook: an explicit, greppable
 # "never disrupt the session" is clearer here than contextlib.suppress.
 "hooks/*.py" = ["SIM105"]
+# OOXML namespace URIs are fixed strings; wrapping them would corrupt the document.
+"src/ato_assist/xlsxlite.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

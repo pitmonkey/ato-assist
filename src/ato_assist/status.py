@@ -284,7 +284,10 @@ def _inbox(index: RepoIndex) -> int:
     inbox = index.root / "inbox"
     if not inbox.is_dir():
         return 0
+    # A file is not waiting if a source was made from it, nor if it was recorded as
+    # evidence: the loose-evidence path copies the artefact and leaves the original.
     ingested = {str(item.data.get("hash")) for item in index.of_kind("sources")}
+    ingested |= {str(item.data.get("integrity")) for item in index.of_kind("evidence")}
     waiting = 0
     for path in inbox.iterdir():
         if not path.is_file() or path.name == "README.md":

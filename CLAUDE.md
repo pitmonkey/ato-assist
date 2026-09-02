@@ -53,6 +53,21 @@ The only venv is `.venv` in this repo, development-only, managed by `uv`: pytest
 
 `tests/test_hook_surface.py` enforces this by inspecting `sys.modules` after a hook bootstrap. If you add an import to a hook-safe module, that test tells you.
 
+## Where things are
+
+| Concern | Module |
+|---|---|
+| YAML subset, frontmatter | `miniyaml` `frontmatter` |
+| The contract, and checking it | `schema` `validate` `refs`-in-`validate` |
+| Finding and reading an assessment | `repo` (`find_root`, `RepoIndex`) |
+| Hook decisions | `hookio`, with thin scripts in `hooks/` |
+| Exit criteria, derived status | `checks` `status` `session` |
+| Documents in, sources out | `ingest` `glossary` |
+| Framework data | `oscal`, catalogue in `data/ism/` |
+| Phases and RFIs | `tracking` |
+| Ratings, register, report | `risk` `export` `xlsxlite` |
+| Commits | `gitops` |
+
 ## Conventions
 
 **Authoring skills** (follow `superpowers:writing-skills`):

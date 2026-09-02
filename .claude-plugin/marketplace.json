@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "ato-assist",
-  "description": "ATO Assist — an assessment workbench plugin for Claude Code.",
+  "description": "ATO Assist \u2014 an assessment workbench plugin for Claude Code.",
   "owner": {
     "name": "pitmonkey",
     "email": "pitmonkey@users.noreply.github.com"
@@ -12,6 +12,13 @@
       "description": "Scaffold a traceability-enforced ATO assessment repository, ingest documents and evidence into a source-referenced file contract, and derive status from files.",
       "version": "0.1.0",
       "source": "./",
+      "category": "security"
+    },
+    {
+      "name": "ato-loose-evidence",
+      "description": "Reference adapter: record an arbitrary file as a conformant evidence entry.",
+      "version": "0.1.0",
+      "source": "./adapters/loose-evidence",
       "category": "security"
     }
   ]

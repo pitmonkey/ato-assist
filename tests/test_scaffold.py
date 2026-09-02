@@ -110,3 +110,9 @@ def test_the_scaffolded_assessment_parses_under_the_yaml_subset(tmp_path: Path) 
     scaffold.create(tmp_path, SPEC)
     for name in ("assessment.yaml", "process.yaml", "risk-matrix.yaml"):
         assert repo.load_yaml(tmp_path / name) is not None, name
+
+
+def test_creates_a_directory_for_each_configured_framework(tmp_path: Path) -> None:
+    scaffold.create(tmp_path, SPEC)
+    assert (tmp_path / "controls" / "ism").is_dir()
+    assert "ism" in (tmp_path / "controls" / "ism" / "README.md").read_text()

@@ -81,6 +81,14 @@ def create(root: Path, spec: Spec, today: datetime.date | None = None) -> Path:
         # should say what belongs in it.
         (directory / "README.md").write_text(f"# `{name}/`\n\n{purpose}\n")
 
+    # Controls are keyed by framework, because two frameworks have colliding control IDs.
+    framework = root / "controls" / spec.framework
+    framework.mkdir(parents=True, exist_ok=True)
+    (framework / "README.md").write_text(
+        f"# `controls/{spec.framework}/`\n\nOne file per {spec.framework} control, named "
+        f"by the framework's own ID (`ISM-0421.md`). Written by `/ato-map-controls`.\n"
+    )
+
     (root / ASSESSMENT_FILE).write_text(_assessment_yaml(spec, today or datetime.date.today()))
     _copy_config(root)
     _seed_working_files(root, spec)

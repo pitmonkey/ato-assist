@@ -496,17 +496,26 @@ def _sweep_derivations(index: Any) -> list[Finding]:
                      "expected on a fresh clone",
             ))
             continue
-        statement = str(item.data.get("statement", "")).strip()
         try:
             text = artefact.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        if statement and statement not in text:
+        # Check the quote, never the statement. A statement rewritten in the assessment's
+        # own voice is what a well-made claim looks like; matching on it would warn on
+        # careful work and stay silent on a candidate copied across verbatim. The quote is
+        # the one thing that must survive unchanged from document to staging to claim.
+        quotes = [
+            entry["quote"].strip()
+            for entry in item.data.get("source") or []
+            if isinstance(entry, dict) and isinstance(entry.get("quote"), str)
+        ]
+        missing = [quote for quote in quotes if quote and quote not in text]
+        if missing:
             findings.append(_warn(
                 "ATO-E308", item.path, "derived_from",
-                f"{item.id} does not appear in {derivation}, which it says it came from",
-                hint="either the claim was reworded after extraction, or it did not come "
-                     "from there",
+                f"{item.id} quotes {missing[0][:60]!r}, which is not in {derivation}",
+                hint="either the quote was edited after extraction, or the claim did not "
+                     "come from there",
             ))
     return findings
 

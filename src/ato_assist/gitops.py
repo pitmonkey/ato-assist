@@ -19,6 +19,7 @@ KINDS = {
     "ingest": "documents became sources",
     "extract": "sources became claims",
     "map": "claims were mapped onto controls",
+    "review": "the assessor accepted, rejected or changed the state of existing work",
     "evidence": "evidence was reconciled against claims",
     "risk": "a risk was raised or changed",
     "rfi": "a request for information changed state",

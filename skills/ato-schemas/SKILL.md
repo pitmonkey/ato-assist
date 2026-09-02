@@ -87,7 +87,7 @@ The fix for `ATO-E110` is to find the reference, never to reword the entry.
 | `ATO-E305` | A framework profile that selects no controls — nothing to assess against (blocking) |
 | `ATO-E306` | A profile spelled unconventionally; it is understood, but write it canonically |
 | `ATO-E307` | A claim names a staging artefact that is not on disk. Expected on a fresh clone — staging files are not committed |
-| `ATO-E308` | A claim does not appear in the staging artefact it says it came from |
+| `ATO-E308` | A claim's quote is not in the staging artefact it says it came from. The statement is not checked — rewriting it in the assessment's voice is what a good claim looks like |
 
 ## The YAML subset
 

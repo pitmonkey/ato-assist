@@ -96,7 +96,7 @@ Where a claim came from an extractor's staging file, record it:
 derived_from: .ato/staging/SRC-0007-ac-family.yaml
 ```
 
-`ato validate` then checks the artefact exists and contains the statement — a question a script can answer, where "who wrote this" is one no hook can. It is provenance, not protection: anyone who could fabricate a claim could fabricate a staging file. Omit it for a claim you wrote from reading a section directly; that is equally legitimate and is not flagged.
+`ato validate` then checks the artefact exists and contains the claim's **quote** — a question a script can answer, where "who wrote this" is one no hook can. The statement is deliberately not checked: rewriting it in the assessment's own voice is what a well-made claim looks like, and the quote is the one thing that must survive unchanged from document to staging to claim. It is provenance, not protection: anyone who could fabricate a claim could fabricate a staging file. Omit it for a claim you wrote from reading a section directly; that is equally legitimate and is not flagged.
 
 `state: draft` until the assessor has looked at it. `confidence` is about how clearly the document asserts it, not about whether it is true — a crisp assertion in a badly-out-of-date document is still `high` confidence *as an extraction*.
 
@@ -129,6 +129,7 @@ ato commit --kind extract --summary "SRC-0007: 31 claims"
 - Never extract a claim from framework control text, however specific it sounds. "The organisation implements multi-factor authentication" in a requirement box is the catalogue talking.
 - If a source is marked `anchors_unavailable`, it has no sections to cite. Do not extract against it — say so, and offer to prepare the document and re-ingest.
 - Never report an absence a sub-agent found by searching without its method and its false-positive check. An unaudited negative is an assertion with more words, and it will be wrong in the reassuring direction.
+- Never renumber claims. `ato next-id claims` allocates the next free number and a spent number stays spent; renumbering to close gaps repoints every citation to it, silently and validly.
 - Never write claims from a truncated extractor result. Partial output looks exactly like complete output once it is in `claims/`.
 - Never add a field to a claim to record which controls it covers. Controls cite claims, not the reverse.
 - Never write a claim from the interview notes. `notes/system-context.md` has no source and is not a document; it is context, not assertion.

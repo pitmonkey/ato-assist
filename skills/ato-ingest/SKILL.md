@@ -32,13 +32,24 @@ It hashes each file, skips anything already ingested unchanged, converts documen
 ato ingest . --reingest SRC-0001
 ```
 
-That discards the source and reads the original again, cleaning up the glossary terms the failed run queued. Never hand-delete a source directory.
+That discards the source and reads the original again, keeping its ID so every claim citing it still resolves, and cleaning up the glossary terms the failed run queued. Never hand-delete a source directory.
+
+It carries across what a person decided rather than what ingest worked out — the classification, and anything the assessor wrote in the index body, which comes back under `## Retained from the previous ingest`. Read that section after a reingest: prose written about the *previous* conversion may not describe the new one, and it is yours to reconcile.
 
 **Read the `!` framework lines.** If a document names a framework the assessment is not configured for — an SSP written against NIST 800-53 being assessed against the ISM — ingest says so. That mismatch will otherwise surface at control mapping as apparent non-compliance when the real problem is that the system was documented to a different catalogue. Put it to the assessor now; it is a scoping decision, not a finding.
 
 ### 2. Set the classification of each new source
 
-Ingest writes `classification: UNOFFICIAL` because it cannot know. Ask the assessor once, for all new sources together, and correct each `index.md`. A source marked below its true classification is a marking failure, not a paperwork one.
+Ingest writes `classification: UNOFFICIAL` and `classification_by: ingest-default`, because it cannot know. Ask the assessor once, for all new sources together, and correct each `index.md` — **both fields**:
+
+```yaml
+classification: PROTECTED
+classification_by: assessor
+```
+
+`ato validate` warns (`ATO-E309`) about any source a claim cites while the classification is still the one ingest guessed at, so leaving the second field is what tells the sweep a person has looked. A deliberate `UNOFFICIAL` is fine and stays quiet, as long as `classification_by: assessor` says someone chose it.
+
+A source marked below its true classification is a marking failure, not a paperwork one.
 
 ### 3. Ask what a revision changed, not whether it changed
 

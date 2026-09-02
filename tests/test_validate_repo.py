@@ -309,3 +309,68 @@ def test_a_claim_with_no_derivation_is_not_flagged(assessment: Path) -> None:
     codes_found = codes(validate.validate_repo(assessment, TODAY))
     assert "ATO-E307" not in codes_found
     assert "ATO-E308" not in codes_found
+
+
+def test_a_cited_source_whose_classification_nobody_set_is_flagged(
+    assessment: Path,
+) -> None:
+    """Ingest writes UNOFFICIAL because it cannot know. Citing it without looking is the risk."""
+    _write(
+        assessment,
+        "sources/SRC-0002-doc/index.md",
+        id="SRC-0002",
+        title="A document",
+        kind="document",
+        received=TODAY,
+        origin="owner",
+        classification="UNOFFICIAL",
+        classification_by="ingest-default",
+        hash="sha256:abc",
+        state="ingested",
+        updated=TODAY,
+    )
+    _claim(assessment, 1, "SRC-0002")
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E309"]
+    assert findings and findings[0].level == "warn"
+    assert "SRC-0002" in findings[0].message
+
+
+def test_an_uncited_source_awaiting_its_classification_is_not_flagged(
+    assessment: Path,
+) -> None:
+    """Between ingest and extraction this is simply the normal state of the world."""
+    _write(
+        assessment,
+        "sources/SRC-0002-doc/index.md",
+        id="SRC-0002",
+        title="A document",
+        kind="document",
+        received=TODAY,
+        origin="owner",
+        classification="UNOFFICIAL",
+        classification_by="ingest-default",
+        hash="sha256:abc",
+        state="ingested",
+        updated=TODAY,
+    )
+    assert "ATO-E309" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+def test_a_deliberately_unofficial_source_is_not_flagged(assessment: Path) -> None:
+    """A public standard cited by a classified assessment is normal and must stay quiet."""
+    _write(
+        assessment,
+        "sources/SRC-0002-doc/index.md",
+        id="SRC-0002",
+        title="A public standard",
+        kind="document",
+        received=TODAY,
+        origin="published",
+        classification="UNOFFICIAL",
+        classification_by="assessor",
+        hash="sha256:abc",
+        state="ingested",
+        updated=TODAY,
+    )
+    _claim(assessment, 1, "SRC-0002")
+    assert "ATO-E309" not in codes(validate.validate_repo(assessment, TODAY))

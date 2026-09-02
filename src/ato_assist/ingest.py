@@ -98,7 +98,9 @@ def run(
         raise IngestError(f"{root} is not an assessment root (no assessment.yaml)")
     today = today or datetime.date.today()
 
+    retained: dict[str, Any] = {}
     if reingest:
+        retained = _retain(root, reingest)
         _discard(root, reingest)
     _preflight(root, force)
 
@@ -134,6 +136,7 @@ def run(
         _write_index(
             directory, source_id, original, digest, extraction, previous, today,
             anchors_unavailable=not structured,
+            retained=retained,
         )
         if previous:
             _mark_superseded(root, known, previous, today)
@@ -350,6 +353,7 @@ def _write_index(
     previous: str | None,
     today: datetime.date,
     anchors_unavailable: bool = False,
+    retained: dict[str, Any] | None = None,
 ) -> None:
     data: dict[str, Any] = {
         "id": source_id,
@@ -358,12 +362,20 @@ def _write_index(
         "received": datetime.date.fromtimestamp(original.stat().st_mtime),
         "origin": "inbox",
         "classification": "UNOFFICIAL",
+        "classification_by": "ingest-default",
         "hash": digest,
         "artifact": [f"inbox/{original.name}"],
         "method": extraction.method,
         "state": "ingested",
         "updated": today,
     }
+    # A reingest replaces a conversion, not the assessor's judgement about the document.
+    # The classification is the field that matters: it is the one thing here a person
+    # decided, and silently reverting it to the ingest default is a marking failure.
+    for field, value in (retained or {}).items():
+        if field != "body":
+            data[field] = value
+
     if anchors_unavailable:
         data["anchors_unavailable"] = True
     if previous:
@@ -391,6 +403,9 @@ def _write_index(
             "\nThis document was handled ad hoc — see `tooling-gaps.md`. Treat anything "
             "extracted from it with lower confidence.\n"
         )
+    kept = (retained or {}).get("body")
+    if kept:
+        body += f"\n## Retained from the previous ingest\n\n{kept.strip()}\n"
     (directory / "index.md").write_text(frontmatter.render(data, body), encoding="utf-8")
 
 
@@ -512,6 +527,55 @@ def _preflight(root: Path, force: bool) -> None:
             "there is no section for a claim to cite. Install the converter and run "
             "again, or re-run with --force to accept a degraded ingest."
         )
+
+
+_ASSESSOR_OWNED = ("classification", "classification_by", "kind", "title", "origin")
+
+
+def _retain(root: Path, source_id: str) -> dict[str, Any]:
+    """What a person decided about a source, before its conversion is replaced.
+
+    Ingest owns the hash, the section split and how the text was recovered. It does not
+    own the classification, and it does not own whatever the assessor wrote about where
+    the document came from — both survive a reingest or the command is a trap.
+    """
+    retained: dict[str, Any] = {}
+    for index in sorted((root / "sources").glob(f"{source_id}-*/index.md")):
+        try:
+            data, body = frontmatter.parse(index.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for field in _ASSESSOR_OWNED:
+            if data.get(field) is not None:
+                retained[field] = data[field]
+        addition = _assessor_prose(body)
+        if addition:
+            retained["body"] = addition
+    return retained
+
+
+def _assessor_prose(body: str) -> str:
+    """The part of an index body a person added, rather than what ingest generated.
+
+    Ingest's own boilerplate is recognisable and worth dropping; anything else in the file
+    was typed by someone and nobody rewrites it from memory.
+    """
+    generated = (
+        "Ingested from",
+        "Sections are split by heading",
+        "## Assessor note",
+        "`classification` is UNOFFICIAL until someone sets it",
+        "**No sections.**",
+        "**Not extracted.**",
+        "This document was handled ad hoc",
+        "## Retained from the previous ingest",
+    )
+    kept = [
+        block
+        for block in body.split("\n\n")
+        if block.strip() and not any(block.lstrip().startswith(g) for g in generated)
+    ]
+    return "\n\n".join(kept)
 
 
 def _discard(root: Path, source_id: str) -> None:

@@ -57,7 +57,19 @@ candidates:
     kind: control-assertion  # control-assertion | architecture | scope | responsibility
     covers: [AC-2]           # control identifiers the section belonged to, if any
 absences:
-  - "Section 4 describes backups but never states a retention period."
+  - statement: "No section names the identity provider this system uses."
+    basis: search
+    method: "Searched all 61 AC and AT sections for concrete identity provider product
+             names and for any assertion of a deployed or configured provider."
+    searched_for: [Keycloak, Okta, Azure AD, Microsoft Entra, PingFederate, ADFS, Auth0,
+                   Shibboleth, Duo, SailPoint, ForgeRock, OIDC, SAML]
+    hits: 0
+    generic_only: "IdP 28 occurrences, always generic; LDAP and Active Directory 5 and 4,
+                   always in an e.g. list; htpasswd 5, always as the disqualifying case."
+    false_positives: "A substring search reports Entra in five sections; every hit is the
+                      letters 'entra' inside 'centralized'. There is no Entra reference."
+  - statement: "Section 4 describes backups but never states a retention period."
+    basis: reading
 undefined_terms: [SIEM, PAM]
 ```
 
@@ -68,6 +80,18 @@ A plan built from a catalogue template repeats the same sentence across a whole 
 When the same assertion recurs, emit a single candidate whose `refs` lists every section it appeared in and whose `covers` lists every control identifier. Twenty-six identical claims bury the four that matter.
 
 **Never collapse a substantive narrative, and never collapse a contradiction.** If two controls describe the same mechanism in different words, or one says a capability exists and another says it does not, those are separate candidates and the difference is the point.
+
+### An absence found by searching must show its work
+
+"The plan never says X" is the most valuable thing you can report and the easiest to get wrong. An absence you found by *reading* says `basis: reading` and needs nothing further — you looked, it was not there.
+
+An absence you found by *searching* carries three things, or it is not reported as an absence at all:
+
+1. **The method and the target set.** What you searched, and across which sections. A search with no defined target is an impression with a grep attached.
+2. **The count, including zero** — and separately, the mentions that were generic or exemplary rather than specific. "Mentioned 28 times, always as an example, never as a statement of what is deployed" is a far stronger finding than "not mentioned", and it is a different finding.
+3. **A false-positive audit of your own hits.** Read every match before reporting it. A substring search for "Entra" matches the middle of "centralized"; reporting five references that do not exist is worse than reporting none, because it is wrong in the direction of reassurance.
+
+**Match the technique to the thing.** A closed set of nameable products — identity providers, scanners, cloud services — suits enumeration: list the candidates, search for each. A quantity does not. "Never states a retention period" or "never states an RTO" is found by looking for units and numerals near the concept, or simply by reading the section. Do not force a product-list search onto something that is not a product, and do not let the absence of a good search technique stop you reading; `basis: reading` is a complete answer.
 
 `kind` says what sort of assertion it is, so the assessor can triage: `control-assertion` (something is done), `architecture` (something exists or connects), `scope` (something is in or out), `responsibility` (someone owns something).
 

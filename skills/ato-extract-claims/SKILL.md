@@ -92,7 +92,9 @@ That is the whole mechanism for "one claim covers a family". The claim does not 
 
 ### 5. Record the absences
 
-The extractor returns what the document conspicuously does not say. These are not claims. Put them in `notes/absences.md` with their section reference. Several will become RFIs, and some will become risks.
+The extractor returns what the document conspicuously does not say. These are not claims — nothing sourced a claim, which is the point. Put them in `notes/absences.md` with their section reference. Several will become RFIs, and some will become risks.
+
+Keep each absence's basis with it. One found by searching carries the method, the target set, the count, and the false-positive check; one found by reading says so. An absence is an assertion about the whole document, and an assessor challenged on it needs to be able to say how it was established — "we searched for these thirteen products across sixty-one sections and found none" survives a review meeting, "it is not mentioned" does not.
 
 ### 6. Queue the terms, do not chase them
 
@@ -114,6 +116,7 @@ ato commit --kind extract --summary "SRC-0007: 31 claims"
 - Never merge two assertions into one claim because they are adjacent. Different evidence, different claim.
 - Never extract a claim from framework control text, however specific it sounds. "The organisation implements multi-factor authentication" in a requirement box is the catalogue talking.
 - If a source is marked `anchors_unavailable`, it has no sections to cite. Do not extract against it — say so, and offer to prepare the document and re-ingest.
+- Never report an absence a sub-agent found by searching without its method and its false-positive check. An unaudited negative is an assertion with more words, and it will be wrong in the reassuring direction.
 - Never write claims from a truncated extractor result. Partial output looks exactly like complete output once it is in `claims/`.
 - Never add a field to a claim to record which controls it covers. Controls cite claims, not the reverse.
 - Never write a claim from the interview notes. `notes/system-context.md` has no source and is not a document; it is context, not assertion.

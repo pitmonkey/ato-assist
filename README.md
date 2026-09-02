@@ -53,6 +53,8 @@ ato next-id   the next free ID                ato commit    a structured commit
 
 Every artefact is markdown with YAML frontmatter, hand-editable and machine-checkable. Claims, controls and risks must cite a source; a `PreToolUse` hook denies writes that do not. See `CLAUDE.md` and `skills/ato-schemas/SKILL.md` for the schemas.
 
+The hook checks a file's **shape**, not its authorship. A well-formed claim passes whether or not anyone read the document it cites, and no hook can tell the difference — so the defence against a fabricated entry is the assessor checking extractor counts and spot-checking quotes, not the tooling. `templates/assessment-CLAUDE.md` says so to every session that opens an assessment.
+
 Integrating a new evidence source means writing a conformant file into `evidence/` — nothing more. Domain-specific evidence analysis belongs in separate small adapter plugins, not here.
 
 ## Status

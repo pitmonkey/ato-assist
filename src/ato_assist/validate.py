@@ -406,6 +406,7 @@ def validate_repo(root: Path | str, today: Any = None) -> list[Finding]:
         findings += _sweep_ratings(index, load_matrix(root))
     findings += _sweep_frameworks(index)
     findings += _sweep_profiles(index)
+    findings += _sweep_derivations(index)
     _ = today
     return findings
 
@@ -467,6 +468,47 @@ def _sweep_frameworks(index: Any) -> list[Finding]:
         for item in index.of_kind("controls")
         if str(item.data.get("framework")) not in configured
     ]
+
+
+def _sweep_derivations(index: Any) -> list[Finding]:
+    """Check a claim against the staging artefact it says it came from.
+
+    This is provenance, not protection. Nothing stops a claim being written without a
+    derivation, and anyone who can fabricate a claim can fabricate a staging file. What
+    it buys is a question a script can answer — "does this claim correspond to something
+    an extractor found" — where "who wrote this" is a question no hook can answer at all.
+
+    Staging files are working artefacts and are not committed, so a missing one warns
+    rather than blocks: on a fresh clone every derivation is unresolvable, and that is
+    expected rather than wrong.
+    """
+    findings: list[Finding] = []
+    for item in index.of_kind("claims"):
+        derivation = item.data.get("derived_from")
+        if not isinstance(derivation, str) or not derivation:
+            continue
+        artefact = index.root / derivation
+        if not artefact.is_file():
+            findings.append(_warn(
+                "ATO-E307", item.path, "derived_from",
+                f"{derivation} is not on disk",
+                hint="staging files are working artefacts and are not committed; this is "
+                     "expected on a fresh clone",
+            ))
+            continue
+        statement = str(item.data.get("statement", "")).strip()
+        try:
+            text = artefact.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if statement and statement not in text:
+            findings.append(_warn(
+                "ATO-E308", item.path, "derived_from",
+                f"{item.id} does not appear in {derivation}, which it says it came from",
+                hint="either the claim was reworded after extraction, or it did not come "
+                     "from there",
+            ))
+    return findings
 
 
 def _sweep_profiles(index: Any) -> list[Finding]:

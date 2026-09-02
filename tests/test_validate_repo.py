@@ -214,3 +214,63 @@ def test_a_framework_with_no_catalogue_is_not_flagged(assessment: Path) -> None:
     path = assessment / "assessment.yaml"
     path.write_text(path.read_text().replace("id: ism", "id: e8"))
     assert "ATO-E305" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+# --- provenance: a claim may name the staging artefact it came from -------------------
+
+
+def _staged(root: Path, name: str, statements: list[str]) -> None:
+    path = root / ".ato" / "staging" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = "".join(f'  - statement: "{s}"\n    refs: [SRC-0001]\n' for s in statements)
+    path.write_text(f"candidates:\n{body}")
+
+
+def _claim_from(root: Path, number: int, statement: str, derived_from: str) -> Path:
+    return _write(
+        root,
+        f"claims/CLM-{number:04d}-c.md",
+        id=f"CLM-{number:04d}",
+        title="A claim",
+        statement=statement,
+        source=[{"ref": "SRC-0001"}],
+        state="asserted",
+        confidence="medium",
+        method="document-review",
+        derived_from=derived_from,
+        updated=TODAY,
+    )
+
+
+def test_a_claim_matching_its_staging_artefact_is_clean(assessment: Path) -> None:
+    _staged(assessment, "SRC-0001-ac.yaml", ["All privileged access requires MFA."])
+    _claim_from(
+        assessment, 1, "All privileged access requires MFA.", ".ato/staging/SRC-0001-ac.yaml"
+    )
+    assert "ATO-E307" not in codes(validate.validate_repo(assessment, TODAY))
+    assert "ATO-E308" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+def test_a_claim_whose_staging_artefact_is_gone_warns(assessment: Path) -> None:
+    _claim_from(assessment, 1, "Anything.", ".ato/staging/absent.yaml")
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E307"]
+    assert findings and findings[0].level == "warn"
+
+
+def test_a_claim_absent_from_the_artefact_it_names_warns(assessment: Path) -> None:
+    """The interesting case: a claim citing real provenance that does not contain it."""
+    _staged(assessment, "SRC-0001-ac.yaml", ["Something else entirely."])
+    _claim_from(
+        assessment, 1, "All privileged access requires MFA.", ".ato/staging/SRC-0001-ac.yaml"
+    )
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E308"]
+    assert findings and findings[0].level == "warn"
+    assert "CLM-0001" in findings[0].path or "CLM-0001" in findings[0].message
+
+
+def test_a_claim_with_no_derivation_is_not_flagged(assessment: Path) -> None:
+    """A claim the caller wrote from reading a section directly is legitimate."""
+    _claim(assessment, 1, "SRC-0001")
+    codes_found = codes(validate.validate_repo(assessment, TODAY))
+    assert "ATO-E307" not in codes_found
+    assert "ATO-E308" not in codes_found

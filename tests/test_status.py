@@ -259,3 +259,23 @@ def test_a_file_already_recorded_as_evidence_is_not_waiting_to_be_ingested(
         "--describe", "An export", "--bears-on", "CLM-0001",
     ])
     assert "waiting" not in status.render(assessment, TODAY)
+
+
+def test_coverage_survives_a_profile_typed_in_the_wrong_case(assessment: Path) -> None:
+    path = assessment / "assessment.yaml"
+    path.write_text(path.read_text().replace("profile: PROTECTED", "profile: protected"))
+    add(
+        assessment,
+        "controls/ism/ISM-0421.md",
+        id="ISM-0421",
+        framework="ism",
+        title="Authentication",
+        status="satisfied",
+        claims=["CLM-0001"],
+        confidence="medium",
+        method="document-review",
+        updated=TODAY,
+    )
+    line = next(ln for ln in status.render(assessment, TODAY).splitlines() if "controls" in ln)
+    assert "1/1 " not in line  # not falling back to the file count
+    assert "%" in line

@@ -180,3 +180,37 @@ def test_a_repo_sweep_reports_a_control_in_a_framework_the_assessment_does_not_u
 def test_a_clean_assessment_sweeps_clean(assessment: Path) -> None:
     _claim(assessment, 1, "SRC-0001")
     assert validate.validate_repo(assessment, TODAY) == []
+
+
+def test_a_framework_profile_that_selects_no_controls_is_blocking(
+    assessment: Path,
+) -> None:
+    """Scaffolded wrong, worked on for weeks, noticed at control mapping. Catch it here."""
+    path = assessment / "assessment.yaml"
+    path.write_text(path.read_text().replace("profile: PROTECTED", "profile: banana"))
+    findings = validate.validate_repo(assessment, TODAY)
+    matching = [f for f in findings if f.code == "ATO-E305"]
+    assert matching and matching[0].level == "error"
+    assert "banana" in matching[0].message
+
+
+def test_a_profile_spelled_unconventionally_is_a_tidy_up_not_a_failure(
+    assessment: Path,
+) -> None:
+    path = assessment / "assessment.yaml"
+    path.write_text(path.read_text().replace("profile: PROTECTED", "profile: protected"))
+    matching = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E306"]
+    assert matching and matching[0].level == "warn"
+    assert "PROTECTED" in matching[0].message
+
+
+def test_a_real_profile_is_not_flagged(assessment: Path) -> None:
+    _claim(assessment, 1, "SRC-0001")
+    assert "ATO-E305" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+def test_a_framework_with_no_catalogue_is_not_flagged(assessment: Path) -> None:
+    """Only frameworks the plugin ships data for can be checked this way."""
+    path = assessment / "assessment.yaml"
+    path.write_text(path.read_text().replace("id: ism", "id: e8"))
+    assert "ATO-E305" not in codes(validate.validate_repo(assessment, TODAY))

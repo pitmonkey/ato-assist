@@ -94,3 +94,40 @@ def test_the_vendored_catalogue_is_present_and_loads() -> None:
     assert catalogue.framework == "ism"
     assert len(catalogue.controls) > 500
     assert catalogue.control("ISM-0421") is not None
+
+
+def test_the_profile_vocabulary_is_available_to_callers(catalogue: Path) -> None:
+    assert "OFFICIAL:Sensitive" in oscal.load(catalogue).profiles
+    assert "PROTECTED" in oscal.load(catalogue).profiles
+
+
+@pytest.mark.parametrize(
+    ("typed", "canonical"),
+    [
+        ("PROTECTED", "PROTECTED"),
+        ("protected", "PROTECTED"),
+        ("  Protected  ", "PROTECTED"),
+        ("OFFICIAL:Sensitive", "OFFICIAL:Sensitive"),
+        ("official: sensitive", "OFFICIAL:Sensitive"),
+        ("OFFICIAL : Sensitive", "OFFICIAL:Sensitive"),
+        ("top secret", "TOP SECRET"),
+    ],
+)
+def test_a_near_miss_profile_resolves_to_the_canonical_string(
+    typed: str, canonical: str
+) -> None:
+    assert oscal.normalise_profile(typed) == canonical
+
+
+@pytest.mark.parametrize("typed", ["banana", "", "OFFICIALS", "restricted", None])
+def test_a_profile_that_means_nothing_does_not_resolve(typed: str | None) -> None:
+    assert oscal.normalise_profile(typed) is None
+
+
+def test_a_normalised_profile_selects_the_controls_the_exact_string_would(
+    catalogue: Path,
+) -> None:
+    loaded = oscal.load(catalogue)
+    resolved = oscal.normalise_profile("protected")
+    assert resolved is not None
+    assert loaded.profile(resolved) == loaded.profile("PROTECTED")

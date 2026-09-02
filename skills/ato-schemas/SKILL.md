@@ -82,6 +82,8 @@ The fix for `ATO-E110` is to find the reference, never to reword the entry.
 | `ATO-E302` | An evidence entry whose artefact is not on disk |
 | `ATO-E303` | A risk rated with a likelihood or consequence the matrix does not have (blocking) |
 | `ATO-E304` | A control in a framework `assessment.yaml` does not list (blocking) |
+| `ATO-E305` | A framework profile that selects no controls — nothing to assess against (blocking) |
+| `ATO-E306` | A profile spelled unconventionally; it is understood, but write it canonically |
 
 ## The YAML subset
 

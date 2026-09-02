@@ -405,6 +405,7 @@ def validate_repo(root: Path | str, today: Any = None) -> list[Finding]:
     with contextlib.suppress(MatrixError):
         findings += _sweep_ratings(index, load_matrix(root))
     findings += _sweep_frameworks(index)
+    findings += _sweep_profiles(index)
     _ = today
     return findings
 
@@ -466,6 +467,42 @@ def _sweep_frameworks(index: Any) -> list[Finding]:
         for item in index.of_kind("controls")
         if str(item.data.get("framework")) not in configured
     ]
+
+
+def _sweep_profiles(index: Any) -> list[Finding]:
+    """A framework profile that selects no controls means there is nothing to assess against.
+
+    This is blocking rather than a warning because the symptom appears late — an
+    assessment can be scaffolded, pass every other check and be worked on for weeks
+    before control mapping finds nothing to map onto.
+    """
+    from .oscal import CatalogueError, normalise_profile
+    from .oscal import load as load_catalogue
+
+    findings: list[Finding] = []
+    for entry in index.assessment.get("frameworks") or []:
+        if not isinstance(entry, dict) or entry.get("id") != "ism":
+            continue  # only frameworks the plugin ships a catalogue for can be checked
+        stated = entry.get("profile")
+        profile = normalise_profile(stated)
+        try:
+            catalogue = load_catalogue()
+        except CatalogueError:
+            return findings
+        if profile is None or not catalogue.profile(profile):
+            findings.append(_error(
+                "ATO-E305", "assessment.yaml", "frameworks",
+                f"profile {stated!r} selects no {str(entry.get('id')).upper()} controls",
+                hint="profiles are: " + ", ".join(catalogue.profiles),
+            ))
+        elif profile != stated:
+            findings.append(_warn(
+                "ATO-E306", "assessment.yaml", "frameworks",
+                f"profile {stated!r} is understood as {profile!r}; write it that way",
+                hint="the spelling is tolerated on the way in, but not everywhere is "
+                     "guaranteed to normalise it",
+            ))
+    return findings
 
 
 def _warn(code: str, path: str, field: str | None, message: str, hint: str = "") -> Finding:

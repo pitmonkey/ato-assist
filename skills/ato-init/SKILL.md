@@ -43,7 +43,11 @@ Ask in one round, and accept short answers:
 
 - System name, and a short name (lowercase, no spaces) used in output filenames.
 - System owner, and who is assessing.
-- Framework and profile. Default `ism` with the profile matching `classification.data` — offer that default rather than making the assessor recite it.
+- Framework and profile. Default `ism`, with the profile matching `classification.data` — offer that default rather than making the assessor recite it.
+
+  A profile **is** a classification marking, and the vocabulary is exactly: `UNOFFICIAL`, `OFFICIAL`, `OFFICIAL:Sensitive`, `PROTECTED`, `SECRET`, `TOP SECRET`. No space after the colon. Case and spacing are tolerated on the way in and normalised, but anything that is not one of these is rejected — a profile that selects no controls would leave the assessment with nothing to map against, and that only shows up much later at `/ato-map-controls`.
+
+  Check what you chose actually selects controls: `ato controls --profile PROTECTED` reports the count.
 - Where the original documents may live: `gitignore` (default — originals stay on disk, out of git), `commit` (originals in the repository), or `reference` (originals live elsewhere, only the hash manifest is kept). If the assessor has no view, take the default and note it in `decisions.md`.
 
 ### 4. Scaffold
@@ -55,6 +59,8 @@ ato init . --name "<name>" --short-name <short> --owner "<owner>" --assessor "<a
 ```
 
 This creates the layout, copies `process.yaml`, `risk-matrix.yaml` and `register-columns.yaml`, writes the workspace `CLAUDE.md` with the marking, seeds the glossary and the working files, and makes the first commit.
+
+It then reads back everything it recorded, and says how many controls the chosen profile selects. **Read that output to the assessor.** A setting nothing echoes is a setting nobody checks, and a profile selecting zero controls is the failure most worth catching here rather than three phases later.
 
 ### 5. Record the setup decisions
 

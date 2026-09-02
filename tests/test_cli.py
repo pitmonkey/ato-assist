@@ -214,3 +214,69 @@ def test_evidence_add_refuses_a_file_it_cannot_see(
         "--describe", "x", "--bears-on", "CLM-0001",
     ]) == 2
     assert "absent.json" in capsys.readouterr().err
+
+
+def test_controls_rejects_a_profile_that_is_not_in_the_catalogue(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A profile that means nothing must not look like one that matches no controls."""
+    assert cli.main(["controls", "--profile", "banana"]) == 1
+    err = capsys.readouterr().err
+    assert "banana" in err
+    assert "PROTECTED" in err  # the vocabulary is named
+
+
+def test_controls_accepts_a_profile_typed_in_the_wrong_case(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["controls", "--profile", "official: sensitive"]) == 0
+    assert "apply at OFFICIAL:Sensitive" in capsys.readouterr().out
+
+
+def test_init_rejects_a_profile_that_matches_no_framework_profile(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    args = [*INIT_ARGS, "--profile", "banana"]
+    assert cli.main(["init", str(tmp_path), *args]) == 2
+    assert "banana" in capsys.readouterr().err
+    assert not (tmp_path / "assessment.yaml").exists()
+
+
+def test_init_writes_the_canonical_profile_whatever_the_assessor_typed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from ato_assist import repo
+
+    cli.main(["init", str(tmp_path), *INIT_ARGS, "--profile", "protected"])
+    capsys.readouterr()
+    assessment = repo.load_assessment(tmp_path)
+    assert assessment is not None
+    assert assessment["frameworks"][0]["profile"] == "PROTECTED"
+
+
+def test_init_echoes_what_it_recorded(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The profile defect was invisible because nothing read the settings back."""
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    out = capsys.readouterr().out
+    for expected in (SPEC.name, SPEC.owner, SPEC.assessor, "OFFICIAL:Sensitive",
+                     "PROTECTED", "ism", "gitignore"):
+        assert expected in out, expected
+
+
+def test_init_says_how_many_controls_the_profile_selects(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    assert "controls apply" in capsys.readouterr().out
+
+
+def test_init_warns_about_the_placeholder_configuration_itself(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The warning must survive an agent that skips the skill's final step."""
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    out = capsys.readouterr().out
+    assert "risk-matrix.yaml" in out
+    assert "placeholder" in out

@@ -11,11 +11,21 @@ import json
 from pathlib import Path
 from typing import NamedTuple
 
-__all__ = ["Catalogue", "CatalogueError", "Control", "load"]
+__all__ = [
+    "Catalogue",
+    "CatalogueError",
+    "Control",
+    "PROFILES",
+    "load",
+    "normalise_profile",
+]
 
 VENDORED = Path(__file__).resolve().parents[2] / "data" / "ism" / "catalogue.json"
 
-# The ISM expresses applicability as a code per classification.
+# The ISM expresses applicability as a code per classification. A profile IS a
+# classification marking, spelled exactly — which is a footgun, because a profile that is
+# not in this table selects nothing and looks identical to one that legitimately matches
+# no controls. `normalise_profile` exists so callers can tell those two apart.
 _APPLICABILITY = {
     "UNOFFICIAL": "NC",
     "OFFICIAL": "NC",
@@ -24,6 +34,25 @@ _APPLICABILITY = {
     "SECRET": "S",
     "TOP SECRET": "TS",
 }
+
+PROFILES = tuple(_APPLICABILITY)
+
+
+def normalise_profile(value: object) -> str | None:
+    """The canonical profile a typed value means, or ``None`` if it means nothing.
+
+    Forgiving about typing, strict about meaning: case and whitespace around the colon
+    are noise an assessor should not have to get right, but anything that does not
+    resolve to a real profile is rejected by the caller rather than quietly selecting no
+    controls.
+    """
+    if not isinstance(value, str):
+        return None
+    collapsed = " ".join(value.split()).replace(" :", ":").replace(": ", ":")
+    for profile in PROFILES:
+        if collapsed.casefold() == profile.casefold():
+            return profile
+    return None
 
 
 class CatalogueError(RuntimeError):
@@ -55,8 +84,17 @@ class Catalogue(NamedTuple):
         wanted = identifier.upper()
         return next((c for c in self.controls if c.id == wanted), None)
 
+    @property
+    def profiles(self) -> tuple[str, ...]:
+        """The profile vocabulary, so a caller can reject an unknown one by name."""
+        return PROFILES
+
     def profile(self, marking: str) -> list[Control]:
-        """The controls that apply at a classification."""
+        """The controls that apply at a classification.
+
+        An unknown marking selects nothing. Callers that need to distinguish "unknown"
+        from "genuinely empty" must ask `normalise_profile` first.
+        """
         code = _APPLICABILITY.get(marking)
         return [c for c in self.controls if code and code in c.applicability]
 

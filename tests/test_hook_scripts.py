@@ -30,6 +30,13 @@ updated: 2026-09-02
 @pytest.fixture
 def assessment(tmp_path: Path) -> Path:
     (tmp_path / "claims").mkdir()
+    source = tmp_path / "sources" / "SRC-0007-ssp"
+    source.mkdir(parents=True)
+    (source / "index.md").write_text(
+        "---\nid: SRC-0007\ntitle: SSP\nkind: document\nreceived: 2026-08-14\n"
+        "origin: owner\nclassification: OFFICIAL\nhash: sha256:abc\nstate: ingested\n"
+        "updated: 2026-08-14\n---\n## Privileged access\n\nText.\n"
+    )
     (tmp_path / "assessment.yaml").write_text(
         "classification:\n  data: OFFICIAL\n  environment: OFFICIAL\n  marking: OFFICIAL\n"
         "phase: intake\n"

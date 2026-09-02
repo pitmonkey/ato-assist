@@ -40,7 +40,7 @@ from .tracking import (
     open_rfis,
     set_phase,
 )
-from .validate import Finding, schema_for_path, validate_document
+from .validate import validate_repo
 
 __all__ = ["main"]
 
@@ -178,30 +178,17 @@ def _validate(args: argparse.Namespace) -> int:
         print(f"{args.root} is not inside an assessment (no assessment.yaml)", file=sys.stderr)
         return 2
 
-    findings = [
-        finding
-        for path in sorted(root.rglob("*.md"))
-        for finding in _validate_one(root, path)
-    ]
+    findings = validate_repo(root)
     if args.as_json:
         print(json.dumps({"findings": [f._asdict() for f in findings]}, indent=2))
     else:
         for finding in findings:
             where = f" ({finding.field})" if finding.field else ""
-            print(f"{finding.code} {finding.path}{where}: {finding.message}")
-        print(f"{len(findings)} problems")
+            mark = "!" if finding.level == "error" else "-"
+            print(f"{mark} {finding.code} {finding.path}{where}: {finding.message}")
+        errors = sum(1 for finding in findings if finding.level == "error")
+        print(f"{len(findings)} problems ({errors} blocking)")
     return 1 if any(f.level == "error" for f in findings) else 0
-
-
-def _validate_one(root: Path, path: Path) -> list[Finding]:
-    relative = path.relative_to(root).as_posix()
-    if schema_for_path(relative) is None:
-        return []
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return [Finding("error", "ATO-E100", relative, None, f"unreadable: {exc}")]
-    return validate_document(relative, text)
 
 
 def _status(args: argparse.Namespace) -> int:

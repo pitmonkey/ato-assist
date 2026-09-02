@@ -45,7 +45,7 @@ def test_validate_is_quiet_and_zero_for_a_clean_assessment(
     cli.main(["init", str(tmp_path), *INIT_ARGS])
     capsys.readouterr()
     assert cli.main(["validate", str(tmp_path)]) == 0
-    assert "0 problems" in capsys.readouterr().out
+    assert "0 problems (0 blocking)" in capsys.readouterr().out
 
 
 def test_validate_reports_a_broken_file_and_exits_one(

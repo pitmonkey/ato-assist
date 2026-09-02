@@ -30,9 +30,28 @@ Notes.
 """
 
 
+SOURCE = """---
+id: SRC-0007
+title: System Security Plan
+kind: document
+received: 2026-08-14
+origin: owner
+classification: OFFICIAL
+hash: sha256:abc
+state: ingested
+updated: 2026-08-14
+---
+## Privileged access
+
+Text.
+"""
+
+
 @pytest.fixture
 def assessment(tmp_path: Path) -> Path:
     (tmp_path / "claims").mkdir()
+    (tmp_path / "sources" / "SRC-0007-ssp").mkdir(parents=True)
+    (tmp_path / "sources" / "SRC-0007-ssp" / "index.md").write_text(SOURCE)
     (tmp_path / "assessment.yaml").write_text(ASSESSMENT)
     return tmp_path
 
@@ -195,3 +214,12 @@ def test_post_is_silent_about_a_conformant_file(assessment: Path) -> None:
 )
 def test_malformed_payloads_produce_no_decision(payload: dict[str, Any]) -> None:
     assert hookio.handle_pre(payload) == {}
+
+
+def test_a_claim_citing_a_source_that_does_not_exist_yet_nudges(assessment: Path) -> None:
+    """The source may be written later in the same turn; denying that would be hostile."""
+    content = VALID_CLAIM.replace("SRC-0007", "SRC-0099")
+    payload = write_payload(assessment / "claims" / "CLM-0042-mfa.md", content)
+    result = hookio.handle_pre(payload)
+    assert decision(result) is None
+    assert "ATO-E112" in reason(result)

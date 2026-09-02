@@ -65,9 +65,23 @@ Conditionally required: a risk needs `owner` once it leaves `draft` and `disposi
 | `ATO-E120` | `id` disagrees with the filename |
 | `ATO-E121` | A control's `framework` disagrees with its directory |
 | `ATO-E122` | The filename is not `<ID>-<slug>.md` |
+| `ATO-E130` | Another file already uses this ID |
 | `ATO-E140` | `method: ad-hoc` with `confidence: high` — degrading to ad-hoc handling caps confidence at medium |
 
 The fix for `ATO-E110` is to find the reference, never to reword the entry.
+
+## Warnings — these do not block a write
+
+`ato validate .` reports these; the hook mentions them and lets the write through, because the thing they point at may be written moments later.
+
+| Code | Meaning |
+|---|---|
+| `ATO-E112` | A reference points at something that does not exist yet |
+| `ATO-E113` | An anchor matches no heading in the source it names |
+| `ATO-E301` | A source no claim cites — nobody has read it, whatever the ingest log says |
+| `ATO-E302` | An evidence entry whose artefact is not on disk |
+| `ATO-E303` | A risk rated with a likelihood or consequence the matrix does not have (blocking) |
+| `ATO-E304` | A control in a framework `assessment.yaml` does not list (blocking) |
 
 ## The YAML subset
 

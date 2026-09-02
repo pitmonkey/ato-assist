@@ -75,7 +75,7 @@ def handle_pre(payload: dict[str, Any]) -> dict[str, Any]:
             "checked against the contract after it is written.",
         )
 
-    findings = validate_document(rel, text)
+    findings = validate_document(rel, text, _index(root))
     errors = [f for f in findings if f.level == "error"]
     if errors:
         return _deny(errors, "PreToolUse")
@@ -94,8 +94,20 @@ def handle_post(payload: dict[str, Any]) -> dict[str, Any]:
     except (OSError, UnicodeDecodeError):
         return {}
 
-    findings = classification_gate(rel, load_assessment(root)) + validate_document(rel, text)
+    findings = classification_gate(rel, load_assessment(root)) + validate_document(
+        rel, text, _index(root)
+    )
     return _nudge("PostToolUse", _render(findings)) if findings else {}
+
+
+def _index(root: Path) -> Any:
+    """The referential layer, or None if building it fails. A hook never dies for this."""
+    try:
+        from .repo import RepoIndex
+
+        return RepoIndex(root)
+    except Exception:
+        return None
 
 
 def _locate(payload: dict[str, Any]) -> tuple[Path, str] | None:

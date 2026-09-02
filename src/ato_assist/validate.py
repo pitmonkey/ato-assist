@@ -10,18 +10,26 @@ grepped by tests, so they are never renumbered.
 
 from __future__ import annotations
 
+import contextlib
 import re
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
 
 from . import frontmatter
 from .miniyaml import MiniYamlError
 from .schema import MARKINGS, SCHEMAS, AnyOfWhen, Field, ItemSchema, marking_rank
 
-__all__ = ["Finding", "classification_gate", "schema_for_path", "validate_document"]
+__all__ = [
+    "Finding",
+    "classification_gate",
+    "schema_for_path",
+    "validate_document",
+    "validate_repo",
+]
 
 _SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 _ANCHOR = r"(?:#[a-z0-9][a-z0-9-]*)?"
+_HEADINGS = re.compile(r"^#{1,6}\s+(.+?)\s*#*$", re.MULTILINE)
 
 
 class Finding(NamedTuple):
@@ -81,8 +89,74 @@ def validate_document(path: str, text: str, repo: Any | None = None) -> list[Fin
     findings += _check_conditionals(schema, path, data)
     findings += _check_traceability(schema, path, data)
     findings += _check_degradation(schema, path, data)
-    _ = repo  # referential checks land in the next layer
+    if repo is not None:
+        findings += _check_references(schema, path, data, repo)
     return findings
+
+
+# --- L2: checks that need to look at the rest of the repository ---------------------
+
+
+def _check_references(
+    schema: ItemSchema, path: str, data: dict[str, Any], repo: Any
+) -> list[Finding]:
+    """Resolve what this document points at, and check nothing else already owns its ID.
+
+    A dangling reference only warns: the target may be written later in the same turn, and
+    denying that would make the workbench hostile enough that someone turns the hook off —
+    which costs far more than a dangling ref. A colliding ID denies, because the filename
+    carries the ID and two files claiming one make every reference to it ambiguous.
+    """
+    findings: list[Finding] = []
+    existing = repo.items.get(str(data.get("id")))
+    if existing is not None and existing.path != path:
+        findings.append(_error(
+            "ATO-E130", path, "id",
+            f"{data.get('id')} is already {existing.path}",
+            hint="the filename carries the ID; two files cannot share one",
+        ))
+
+    for field in schema.fields:
+        if field.kind not in ("ref-list", "id-list"):
+            continue
+        for entry in data.get(field.name) or []:
+            ref = entry.get("ref") if isinstance(entry, dict) else entry
+            if not isinstance(ref, str):
+                continue
+            target, _, anchor = ref.partition("#")
+            item = repo.items.get(target)
+            if item is None:
+                findings.append(_warn(
+                    "ATO-E112", path, field.name,
+                    f"{target} does not exist yet",
+                    hint="write it, or correct the reference",
+                ))
+            elif anchor and not _anchor_exists(repo, item, anchor):
+                findings.append(_warn(
+                    "ATO-E113", path, field.name,
+                    f"{target} has no section {anchor!r}",
+                    hint="anchors match a heading in the source, slugified",
+                ))
+    return findings
+
+
+def _anchor_exists(repo: Any, item: Any, anchor: str) -> bool:
+    """An anchor matches a heading in the target, or an anchor it declares outright."""
+    if anchor in {str(value) for value in item.data.get("anchors") or []}:
+        return True
+    directory = (repo.root / item.path).parent
+    for candidate in directory.glob("*.md"):
+        try:
+            text = candidate.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if any(_slugify(heading) == anchor for heading in _HEADINGS.findall(text)):
+            return True
+    return False
+
+
+def _slugify(heading: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", heading.lower()).strip("-")
 
 
 # --- naming -----------------------------------------------------------------------
@@ -298,3 +372,101 @@ def classification_gate(path: str, assessment: dict[str, Any] | None) -> list[Fi
             hint="artefacts inherit the highest classification they describe",
         )]
     return []
+
+
+# --- L3: the repo-wide sweep --------------------------------------------------------
+
+
+def validate_repo(root: Path | str, today: Any = None) -> list[Finding]:
+    """Validate a whole assessment: every document, plus what only the whole tells you."""
+    from .repo import RepoIndex  # imported here: the hook never needs the index
+    from .risk import MatrixError
+    from .risk import load as load_matrix
+
+    root = Path(root)
+    index = RepoIndex(root)
+    findings: list[Finding] = []
+
+    for path in sorted(root.rglob("*.md")):
+        relative = path.relative_to(root).as_posix()
+        if schema_for_path(relative) is None:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            findings.append(_error("ATO-E100", relative, None, f"unreadable: {exc}"))
+            continue
+        findings += validate_document(relative, text, index)
+
+    findings += _sweep_orphans(index)
+    findings += _sweep_artifacts(index)
+    # A missing matrix is reported where it bites, by the exporter; here it just means
+    # ratings cannot be checked.
+    with contextlib.suppress(MatrixError):
+        findings += _sweep_ratings(index, load_matrix(root))
+    findings += _sweep_frameworks(index)
+    _ = today
+    return findings
+
+
+def _sweep_orphans(index: Any) -> list[Finding]:
+    """A source nothing cites has been read by nobody, whatever the ingest log says."""
+    cited = {
+        target.split("#", 1)[0]
+        for item in index.of_kind("claims")
+        for target in index.refs_of(item, "source")
+    }
+    return [
+        _warn("ATO-E301", item.path, None,
+              f"{item.id} is cited by no claim",
+              hint="extract its claims, or mark it superseded")
+        for item in index.of_kind("sources")
+        if item.id not in cited and item.data.get("state") != "superseded"
+    ]
+
+
+def _sweep_artifacts(index: Any) -> list[Finding]:
+    findings: list[Finding] = []
+    for item in index.of_kind("evidence"):
+        for artifact in item.data.get("artifact") or []:
+            if not (index.root / str(artifact)).exists():
+                findings.append(_warn(
+                    "ATO-E302", item.path, "artifact",
+                    f"{artifact} is not on disk",
+                    hint="evidence that points at nothing cannot be reviewed",
+                ))
+    return findings
+
+
+def _sweep_ratings(index: Any, matrix: Any) -> list[Finding]:
+    findings: list[Finding] = []
+    for item in index.of_kind("risks"):
+        likelihood, impact = item.data.get("likelihood"), item.data.get("impact")
+        if matrix.severity(likelihood, impact) is None:
+            findings.append(_error(
+                "ATO-E303", item.path, "likelihood",
+                f"{likelihood}/{impact} is not on the matrix scales",
+                hint="use the scales in risk-matrix.yaml, or change the matrix",
+            ))
+    return findings
+
+
+def _sweep_frameworks(index: Any) -> list[Finding]:
+    configured = {
+        str(entry.get("id"))
+        for entry in index.assessment.get("frameworks") or []
+        if isinstance(entry, dict)
+    }
+    if not configured:
+        return []
+    return [
+        _error("ATO-E304", item.path, "framework",
+               f"{item.data.get('framework')} is not a framework in assessment.yaml "
+               f"({', '.join(sorted(configured))})")
+        for item in index.of_kind("controls")
+        if str(item.data.get("framework")) not in configured
+    ]
+
+
+def _warn(code: str, path: str, field: str | None, message: str, hint: str = "") -> Finding:
+    return Finding("warn", code, path, field, message, hint)

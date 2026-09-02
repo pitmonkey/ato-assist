@@ -32,6 +32,7 @@ from .schema import SCHEMAS
 from .status import render as status_render
 from .status import summary as status_summary
 from .tracking import (
+    MissingReason,
     TrackingError,
     close_rfi,
     export_rfis,
@@ -397,13 +398,15 @@ def _rfi(args: argparse.Namespace) -> int:
         return 0
 
     if args.action == "withdraw":
-        if not args.identifier or not args.reason:
-            print("withdrawing an RFI needs its id and --reason: a withdrawn question is "
-                  "one the assessment got wrong, and the record should say how",
-                  file=sys.stderr)
+        if not args.identifier:
+            print("withdrawing an RFI needs its id", file=sys.stderr)
             return 2
         try:
             path = withdraw_rfi(root, args.identifier, args.reason, args.superseded_by)
+        except MissingReason as exc:
+            print(f"{exc}: a withdrawn question is one the assessment got wrong, and the "
+                  "record should say how", file=sys.stderr)
+            return 2
         except TrackingError as exc:
             print(str(exc), file=sys.stderr)
             return 1

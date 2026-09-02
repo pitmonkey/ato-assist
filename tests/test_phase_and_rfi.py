@@ -213,3 +213,74 @@ def test_withdrawing_something_that_is_not_an_rfi_exits_one(
         "rfi", "withdraw", "RFI-0099", "--root", str(assessment), "--reason", "x",
     ]) == 1
     assert "RFI-0099" in capsys.readouterr().err
+
+
+def _hand_withdrawn(assessment: Path, capsys: pytest.CaptureFixture[str]) -> Path:
+    """An RFI withdrawn by hand before the command existed: prose, but no dated field."""
+    cli.main([
+        "rfi", "new", "--root", str(assessment), "--question", "Where is the diagram?",
+        "--asked-of", "owner",
+    ])
+    capsys.readouterr()
+    path = next((assessment / "rfi").glob("RFI-0001-*.md"))
+    data, body = frontmatter.parse(path.read_text())
+    data["state"] = "withdrawn"
+    path.write_text(
+        frontmatter.render(data, body)
+        + "\n## Why this was withdrawn\n\nA long paragraph written when the mistake was"
+        " fresh, explaining which half of the question survived into its replacement.\n"
+    )
+    return path
+
+
+def test_withdraw_completes_a_record_set_by_hand(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The migration path for anyone who did it by hand before the command existed."""
+    path = _hand_withdrawn(assessment, capsys)
+    assert cli.main(["rfi", "withdraw", "RFI-0001", "--root", str(assessment)]) == 0
+    data, body = frontmatter.parse(path.read_text())
+    assert data["withdrawn_on"] is not None
+    assert body.count("## Why this was withdrawn") == 1
+    assert "written when the mistake was" in body
+
+
+def test_withdraw_refuses_to_overwrite_a_reason_already_written(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A paragraph written when the mistake was fresh outranks a command-line string."""
+    path = _hand_withdrawn(assessment, capsys)
+    assert cli.main([
+        "rfi", "withdraw", "RFI-0001", "--root", str(assessment), "--reason", "Something else.",
+    ]) == 1
+    err = capsys.readouterr().err
+    assert "already" in err
+    body = frontmatter.parse(path.read_text())[1]
+    assert "Something else." not in body
+
+
+def test_withdraw_still_needs_a_reason_for_a_record_that_has_none(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main([
+        "rfi", "new", "--root", str(assessment), "--question", "Where is the diagram?",
+        "--asked-of", "owner",
+    ])
+    path = next((assessment / "rfi").glob("RFI-0001-*.md"))
+    data, body = frontmatter.parse(path.read_text())
+    data["state"] = "withdrawn"
+    path.write_text(frontmatter.render(data, body))
+    capsys.readouterr()
+    assert cli.main(["rfi", "withdraw", "RFI-0001", "--root", str(assessment)]) == 2
+    assert "--reason" in capsys.readouterr().err
+
+
+def test_withdraw_does_not_move_a_date_already_recorded(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _hand_withdrawn(assessment, capsys)
+    data, body = frontmatter.parse(path.read_text())
+    data["withdrawn_on"] = datetime.date(2026, 8, 1)
+    path.write_text(frontmatter.render(data, body))
+    cli.main(["rfi", "withdraw", "RFI-0001", "--root", str(assessment)])
+    assert frontmatter.parse(path.read_text())[0]["withdrawn_on"] == datetime.date(2026, 8, 1)

@@ -16,6 +16,7 @@ from . import frontmatter
 from .repo import ASSESSMENT_FILE, load_assessment, load_yaml
 
 __all__ = [
+    "MissingReason",
     "TrackingError",
     "close_rfi",
     "export_rfis",
@@ -28,6 +29,10 @@ __all__ = [
 
 class TrackingError(RuntimeError):
     """The assessment cannot be moved or amended as asked."""
+
+
+class MissingReason(TrackingError):
+    """A withdrawal with nothing on file saying why the question was mistaken."""
 
 
 # --- phases -------------------------------------------------------------------------
@@ -138,10 +143,13 @@ def close_rfi(
     return path
 
 
+WITHDRAWN_HEADING = "## Why this was withdrawn"
+
+
 def withdraw_rfi(
     root: Path,
     identifier: str,
-    reason: str,
+    reason: str | None = None,
     superseded_by: str | None = None,
     today: datetime.date | None = None,
 ) -> Path:
@@ -156,14 +164,33 @@ def withdraw_rfi(
     path = _find_rfi(root, identifier)
     data, body = frontmatter.parse(path.read_text(encoding="utf-8"))
     today = today or datetime.date.today()
+    already_explained = WITHDRAWN_HEADING in body
+
+    if reason and already_explained:
+        raise TrackingError(
+            f"{identifier} already records why it was withdrawn. A reason written when "
+            "the mistake was fresh outranks a command-line string — edit the file if it "
+            "needs changing, or run this without --reason to fill in what is missing."
+        )
+    if not reason and not already_explained:
+        raise MissingReason(
+            f"{identifier} does not say why it was withdrawn; pass --reason"
+        )
+
     data["state"] = "withdrawn"
-    data["withdrawn_on"] = today
+    # Completing a record set by hand, not restamping it: a date already there is the
+    # date the person meant, and this command arriving later does not change when the
+    # question was retracted.
+    if not data.get("withdrawn_on"):
+        data["withdrawn_on"] = today
     data["updated"] = today
-    if superseded_by:
+    if superseded_by and not data.get("superseded_by"):
         data["superseded_by"] = [superseded_by]
-    body = body.rstrip() + f"\n\n## Why this was withdrawn\n\n{reason.strip()}\n"
-    if superseded_by:
-        body += f"\nReplaced by {superseded_by}.\n"
+
+    if reason:
+        body = body.rstrip() + f"\n\n{WITHDRAWN_HEADING}\n\n{reason.strip()}\n"
+        if superseded_by:
+            body += f"\nReplaced by {superseded_by}.\n"
     path.write_text(frontmatter.render(data, body), encoding="utf-8")
     return path
 

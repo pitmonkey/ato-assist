@@ -55,9 +55,41 @@ def _repo_documents() -> list[tuple[str, str]]:
     return found
 
 
+# Documents real YAML refuses. Being more permissive than the spec is a bug: it produces
+# files this plugin calls conformant that no other YAML tool can read. The corpus above
+# only ever proved agreement on what both accept, which is the easy half and is how a
+# control title carrying a colon got through.
+REJECTED = [
+    "title: AU-12: OpenShift auditing enabled by default\n",
+    "title: ends with a colon:\n",
+    "statement: The rule is: quote it\n",
+    "id: CLM-0001\n\tbad: tab\n",
+    "a: 1\n---\nb: 2\n",
+    "base: &anchor\n  a: 1\n",
+]
+
+
 @pytest.mark.parametrize("document", CORPUS, ids=range(len(CORPUS)))
 def test_agrees_with_pyyaml_on_the_corpus(document: str) -> None:
     assert miniyaml.loads(document) == yaml.safe_load(document)
+
+
+@pytest.mark.parametrize("document", REJECTED, ids=range(len(REJECTED)))
+def test_refuses_what_real_yaml_refuses(document: str) -> None:
+    with pytest.raises(miniyaml.MiniYamlError):
+        miniyaml.loads(document)
+
+
+def test_nothing_this_parser_accepts_is_rejected_by_real_yaml() -> None:
+    """The property that matters, over every document the repo ships."""
+    for name, text in _repo_documents():
+        try:
+            miniyaml.loads(text)
+        except miniyaml.MiniYamlError:
+            continue  # refusing something is always safe; being lax is not
+        # Accepted here, so real YAML must accept it too, or the file is unreadable
+        # by anything else that follows the contract.
+        yaml.safe_load(text), name
 
 
 def test_agrees_with_pyyaml_on_every_document_shipped_in_the_repo() -> None:

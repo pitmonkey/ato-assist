@@ -83,9 +83,18 @@ def evaluate_phase(
 
 
 def _matching(items: list[Item], where: dict[str, Any] | None) -> list[Item]:
+    """Filter items by frontmatter fields. A list of values means any one of them."""
     if not where:
         return items
-    return [item for item in items if all(item.data.get(k) == v for k, v in where.items())]
+    return [
+        item
+        for item in items
+        if all(_holds(item.data.get(field), wanted) for field, wanted in where.items())
+    ]
+
+
+def _holds(value: Any, wanted: Any) -> bool:
+    return value in wanted if isinstance(wanted, list) else value == wanted
 
 
 @check("field_count")

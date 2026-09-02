@@ -284,3 +284,48 @@ def test_withdraw_does_not_move_a_date_already_recorded(
     path.write_text(frontmatter.render(data, body))
     cli.main(["rfi", "withdraw", "RFI-0001", "--root", str(assessment)])
     assert frontmatter.parse(path.read_text())[0]["withdrawn_on"] == datetime.date(2026, 8, 1)
+
+
+def test_withdrawing_an_already_complete_record_changes_nothing_on_disk(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Re-rendering a file that needed nothing is a diff someone has to read to dismiss.
+
+    The hand-written inline sequence is the real case: it round-trips to a block sequence,
+    so a file that needed no change comes back different for no reason anyone can see.
+    """
+    path = _hand_withdrawn(assessment, capsys)
+    path.write_text(
+        path.read_text()
+        .replace("state: withdrawn", "state: withdrawn\nwithdrawn_on: 2026-08-01")
+        .replace("updated:", "superseded_by: [RFI-0013]\nupdated:")
+    )
+    before = path.read_bytes()
+
+    assert cli.main(["rfi", "withdraw", "RFI-0001", "--root", str(assessment)]) == 0
+    assert path.read_bytes() == before
+
+
+def test_withdrawing_an_already_complete_record_says_so(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """"Withdrawn" cannot distinguish "I completed this" from "this was already fine"."""
+    path = _hand_withdrawn(assessment, capsys)
+    path.write_text(
+        path.read_text().replace("state: withdrawn", "state: withdrawn\nwithdrawn_on: 2026-08-01")
+    )
+    capsys.readouterr()
+
+    cli.main(["rfi", "withdraw", "RFI-0001", "--root", str(assessment)])
+    out = capsys.readouterr().out
+    assert "already complete" in out
+    assert "nothing to fill in" in out
+
+
+def test_withdrawing_an_incomplete_record_still_reports_the_change(
+    assessment: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _hand_withdrawn(assessment, capsys)
+    capsys.readouterr()
+    cli.main(["rfi", "withdraw", "RFI-0001", "--root", str(assessment)])
+    assert "withdrawn" in capsys.readouterr().out

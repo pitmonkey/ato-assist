@@ -49,7 +49,9 @@ Closing and withdrawing are different acts and the register must be able to tell
 
 Never edit a mistaken RFI into a different question. The record of having asked the wrong thing is part of the assessment.
 
-**If the record already explains itself, the command completes it rather than repeating it.** Run `ato rfi withdraw RFI-NNNN` with no `--reason` against an RFI that was set to `withdrawn` by hand: it fills in the missing `withdrawn_on`, leaves a date already there alone, and does not append a second explanation. Passing `--reason` to an RFI that already carries one is refused — a paragraph written when the mistake was fresh outranks a command-line string, and if it needs changing, edit the file.
+**If the record already explains itself, the command completes it rather than repeating it.** Run `ato rfi withdraw RFI-NNNN` with no `--reason` against an RFI that was set to `withdrawn` by hand: it fills in the missing `withdrawn_on`, leaves a date already there alone, and does not append a second explanation. It says which it did — `withdrawn`, or `already complete; nothing to fill in` — and touches the file only when something actually needed filling, so running it to check costs nothing and leaves no diff.
+
+Passing `--reason` to an RFI that already carries one is refused — a paragraph written when the mistake was fresh outranks a command-line string, and if it needs changing, edit the file.
 
 ### Listing and sending
 

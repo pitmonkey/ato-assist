@@ -152,7 +152,7 @@ def withdraw_rfi(
     reason: str | None = None,
     superseded_by: str | None = None,
     today: datetime.date | None = None,
-) -> Path:
+) -> tuple[Path, bool]:
     """Retract a question the assessment should not have asked.
 
     Distinct from closing one, and deliberately so. A closed RFI was answered, and the
@@ -177,22 +177,33 @@ def withdraw_rfi(
             f"{identifier} does not say why it was withdrawn; pass --reason"
         )
 
+    # Track what actually changes rather than comparing rendered text: a hand-written
+    # inline sequence round-trips to the canonical block form, so a file needing nothing
+    # would still come back different, and a diff nobody can explain is worse than none.
+    changed = data.get("state") != "withdrawn"
     data["state"] = "withdrawn"
-    # Completing a record set by hand, not restamping it: a date already there is the
-    # date the person meant, and this command arriving later does not change when the
-    # question was retracted.
+
+    # Completing a record set by hand, not restamping it: a date already there is the date
+    # the person meant, and this command arriving later does not change when the question
+    # was retracted.
     if not data.get("withdrawn_on"):
         data["withdrawn_on"] = today
-    data["updated"] = today
+        changed = True
     if superseded_by and not data.get("superseded_by"):
         data["superseded_by"] = [superseded_by]
+        changed = True
 
     if reason:
         body = body.rstrip() + f"\n\n{WITHDRAWN_HEADING}\n\n{reason.strip()}\n"
         if superseded_by:
             body += f"\nReplaced by {superseded_by}.\n"
+        changed = True
+
+    if not changed:
+        return path, False
+    data["updated"] = today
     path.write_text(frontmatter.render(data, body), encoding="utf-8")
-    return path
+    return path, True
 
 
 def _find_rfi(root: Path, identifier: str) -> Path:

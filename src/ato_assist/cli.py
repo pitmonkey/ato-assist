@@ -402,7 +402,9 @@ def _rfi(args: argparse.Namespace) -> int:
             print("withdrawing an RFI needs its id", file=sys.stderr)
             return 2
         try:
-            path = withdraw_rfi(root, args.identifier, args.reason, args.superseded_by)
+            path, changed = withdraw_rfi(
+                root, args.identifier, args.reason, args.superseded_by
+            )
         except MissingReason as exc:
             print(f"{exc}: a withdrawn question is one the assessment got wrong, and the "
                   "record should say how", file=sys.stderr)
@@ -410,7 +412,10 @@ def _rfi(args: argparse.Namespace) -> int:
         except TrackingError as exc:
             print(str(exc), file=sys.stderr)
             return 1
-        print(f"{args.identifier} withdrawn ({path.name})")
+        if changed:
+            print(f"{args.identifier} withdrawn ({path.name})")
+        else:
+            print(f"{args.identifier} was already complete; nothing to fill in")
         return 0
 
     if args.action == "export":

@@ -190,8 +190,11 @@ def _framework_total(index: RepoIndex) -> int:
     first = frameworks[0]
     if not isinstance(first, dict) or first.get("id") != "ism":
         return 0
+    profile = oscal.normalise_profile(first.get("profile"))
+    if profile is None:
+        return 0
     try:
-        return len(oscal.load().profile(str(first.get("profile", ""))))
+        return len(oscal.load().profile(profile))
     except oscal.CatalogueError:
         return 0
 

@@ -22,7 +22,7 @@ from .gitops import GitError
 from .gitops import commit as git_commit
 from .ingest import IngestError
 from .ingest import run as ingest_run
-from .oscal import CatalogueError
+from .oscal import PROFILES, CatalogueError, normalise_profile
 from .oscal import load as load_catalogue
 from .repo import find_root_from
 from .risk import MatrixError, rate_all
@@ -150,6 +150,14 @@ def _parser() -> argparse.ArgumentParser:
 
 def _init(args: argparse.Namespace) -> int:
     root = Path(args.root)
+    profile = normalise_profile(args.profile)
+    if profile is None:
+        print(
+            f"--profile {args.profile!r} is not a framework profile. Use one of: "
+            + ", ".join(PROFILES),
+            file=sys.stderr,
+        )
+        return 2
     root.mkdir(parents=True, exist_ok=True)
     spec = Spec(
         name=args.name,
@@ -160,7 +168,7 @@ def _init(args: argparse.Namespace) -> int:
         environment=args.environment,
         marking=args.marking,
         framework=args.framework,
-        profile=args.profile,
+        profile=profile,
         retain=args.retain,
     )
     try:
@@ -168,8 +176,41 @@ def _init(args: argparse.Namespace) -> int:
     except ScaffoldError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    print(f"Assessment scaffolded at {root} [{spec.marking}]. Next: /ato-interview.")
+    _report_init(root, spec)
     return 0
+
+
+def _report_init(root: Path, spec: Spec) -> None:
+    """Read the settings back. A setting nothing echoes is a setting nobody checks."""
+    print(f"Assessment scaffolded at {root}\n")
+    for label, value in (
+        ("system", f"{spec.name} ({spec.short_name})"),
+        ("owner", spec.owner),
+        ("assessor", spec.assessor),
+        ("data", spec.data),
+        ("environment", spec.environment),
+        ("marking", spec.marking),
+        ("framework", f"{spec.framework} {spec.profile}"),
+        ("inbox", f"{spec.retain} ({spec.retention_days} days)"),
+    ):
+        print(f"  {label:<12} {value}")
+
+    try:
+        catalogue = load_catalogue()
+        selected = len(catalogue.profile(spec.profile))
+        print(f"\n{selected} {spec.framework.upper()} controls apply at {spec.profile} "
+              f"({spec.framework.upper()} {catalogue.version}).")
+    except CatalogueError as exc:
+        print(f"\n! No control catalogue: {exc}")
+
+    print(
+        "\n! process.yaml, risk-matrix.yaml and register-columns.yaml are authored "
+        "placeholders,\n"
+        "  not your organisation's. Validate them with your assessment team before a "
+        "register\n"
+        "  or report goes anywhere. `ato status` will keep saying so until you do.\n"
+        "\nNext: /ato-interview, before ingesting any document."
+    )
 
 
 def _validate(args: argparse.Namespace) -> int:
@@ -271,7 +312,16 @@ def _controls(args: argparse.Namespace) -> int:
         return 0
 
     if args.profile:
-        selected = catalogue.profile(args.profile)
+        profile = normalise_profile(args.profile)
+        if profile is None:
+            print(
+                f"{args.profile!r} is not a profile in the {catalogue.framework.upper()} "
+                f"catalogue. Use one of: " + ", ".join(catalogue.profiles),
+                file=sys.stderr,
+            )
+            return 1
+        args.profile = profile
+        selected = catalogue.profile(profile)
         print(_CONTROL_LIST_HEADER.format(
             count=len(selected), profile=args.profile, version=catalogue.version
         ))

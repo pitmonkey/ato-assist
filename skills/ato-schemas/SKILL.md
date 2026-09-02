@@ -94,6 +94,7 @@ The fix for `ATO-E110` is to find the reference, never to reword the entry.
 | `ATO-E308` | A claim's quote is not in the staging artefact it says it came from. The statement is not checked — rewriting it in the assessment's voice is what a good claim looks like |
 | `ATO-E309` | A source is cited by a claim while its classification is still the one ingest guessed at. Set `classification` and `classification_by: assessor` |
 | `ATO-E310` | A claim's quote is not in the section it cites. A quote is verbatim; if the wording has to change, the source needs re-reading |
+| `ATO-E311` | The system owner and the assessor are the same person. The owner is printed on the report's first page |
 
 ## The YAML subset
 

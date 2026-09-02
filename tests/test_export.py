@@ -112,3 +112,60 @@ def test_exporting_without_a_matrix_is_refused_not_guessed(tmp_path: Path) -> No
     (tmp_path / "risk-matrix.yaml").unlink()
     with pytest.raises(export.ExportError):
         export.register_csv(tmp_path, TODAY)
+
+
+def _control(root: Path, identifier: str, status: str) -> None:
+    (root / "controls" / "ism").mkdir(parents=True, exist_ok=True)
+    (root / "controls" / "ism" / f"{identifier}.md").write_text(
+        frontmatter.render(
+            {
+                "id": identifier,
+                "framework": "ism",
+                "title": "A control",
+                "status": status,
+                "claims": ["CLM-0001"],
+                "confidence": "medium",
+                "method": "document-review",
+                "updated": TODAY,
+            },
+            "",
+        )
+    )
+
+
+def test_the_report_states_coverage_against_the_framework_not_the_files(
+    assessment: Path,
+) -> None:
+    """"not-assessed: 47" with no denominator reads as though 47 were the universe."""
+    _control(assessment, "ISM-0421", "not-assessed")
+    text = export.report(assessment, TODAY).read_text()
+    assert "1 of " in text
+    assert "0 assessed" in text
+    assert "not-assessed: 1" in text
+
+
+def test_the_report_says_how_much_of_the_evidence_is_missing(assessment: Path) -> None:
+    """135 claims of which 135 have no evidence is the finding, not a footnote."""
+    (assessment / "claims" / "CLM-0001-c.md").write_text(
+        frontmatter.render(
+            {
+                "id": "CLM-0001",
+                "title": "A claim",
+                "statement": "Asserted.",
+                "source": [{"ref": "SRC-0001"}],
+                "state": "asserted",
+                "confidence": "medium",
+                "method": "document-review",
+                "updated": TODAY,
+            },
+            "",
+        )
+    )
+    text = export.report(assessment, TODAY).read_text()
+    assert "1 claim" in text
+    assert "no evidence" in text
+
+
+def test_a_report_with_nothing_assessed_says_so_plainly(assessment: Path) -> None:
+    text = export.report(assessment, TODAY).read_text()
+    assert "No controls have been assessed" in text

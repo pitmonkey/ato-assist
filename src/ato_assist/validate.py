@@ -409,6 +409,7 @@ def validate_repo(root: Path | str, today: Any = None) -> list[Finding]:
     findings += _sweep_derivations(index)
     findings += _sweep_classifications(index)
     findings += _sweep_quotes(index)
+    findings += _sweep_parties(index)
     _ = today
     return findings
 
@@ -470,6 +471,28 @@ def _sweep_frameworks(index: Any) -> list[Finding]:
         for item in index.of_kind("controls")
         if str(item.data.get("framework")) not in configured
     ]
+
+
+def _sweep_parties(index: Any) -> list[Finding]:
+    """The system owner and the assessor being the same person.
+
+    Every field `ato init` asks for is answered before the assessment knows anything about
+    the system, and several are printed in deliverables as though they were established.
+    The classification gets revisited because a check exists for it; the owner did not,
+    and a report went to draft stating that the assessor owned the system being assessed.
+    """
+    system = index.assessment.get("system") or {}
+    if not isinstance(system, dict):
+        return []
+    owner, assessor = system.get("owner"), system.get("assessor")
+    if not owner or owner != assessor:
+        return []
+    return [_warn(
+        "ATO-E311", "assessment.yaml", "system",
+        f"the system owner and the assessor are both {owner!r}",
+        hint="the owner is printed on the first page of the report; set it from the "
+             "document rather than leaving what init was told",
+    )]
 
 
 def _sweep_quotes(index: Any) -> list[Finding]:

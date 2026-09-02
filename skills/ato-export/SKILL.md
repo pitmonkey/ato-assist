@@ -28,6 +28,14 @@ Do not export over the top of unresolved problems. In particular:
 - **Accepted risks with no disposition.** A board will ask why it was accepted; the file should already say.
 - **Draft risks.** Decide with the assessor whether they belong in this export.
 
+### 1b. Check the facts the report prints as though they were established
+
+**Every field `ato init` asked for was answered before the assessment knew anything about the system**, and several are printed on the first page of the report: the system name, the owner, the assessor, the scope. Nothing revisits them. The classification gets revisited because a check exists for it; the owner does not, and a report has gone to draft stating that the assessor owned the system being assessed.
+
+Before exporting, read the header block of `assessment.yaml` against the documents. For each field, ask where in `sources/` it is established, and correct it — with a line in `decisions.md` — where the answer is "nowhere" or "it disagrees".
+
+`ato validate` warns (`ATO-E311`) where the owner and the assessor are the same person, which is the case that has actually happened, but it cannot check the rest. That part is reading.
+
 ### 2. Export
 
 ```
@@ -59,4 +67,5 @@ ato commit --kind export --summary "risk register and report for the September b
 - **Never hand-edit anything in `outputs/`.** It is regenerated; an edit there is lost on the next export and disagrees with the files in the meantime. Fix the source file and export again.
 - Never adjust a rating to make a register read better.
 - Never write a number into the report that is not in `ato status`.
+- **Never state a count without its denominator.** "not-assessed: 47" with no universe anywhere in the document lets a reader take 47 for the whole framework. The skeleton now prints coverage against the applicable profile; if you add a count of your own, add what it is out of.
 - The marking on every output is a real classification decision. If the assessor wants it changed, that is a change to `assessment.yaml`, not to the file header.

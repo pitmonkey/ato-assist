@@ -299,6 +299,15 @@ def _plain(text: str, no: int) -> Any:
         if text[0] == '"':
             return body.replace("\\n", "\n").replace('\\"', '"').replace("\\\\", "\\")
         return body.replace("''", "'")
+    # A plain scalar carrying ": " or ending in ":" is not valid YAML — real parsers read
+    # it as a nested mapping and fail. Accepting it would make this parser more permissive
+    # than the spec, which sounds generous and is not: it produces files the contract calls
+    # integrable that no other YAML tool can read. `AU-12: OpenShift auditing` is exactly
+    # the shape a control title takes, so this is common rather than exotic.
+    if ": " in text or text.endswith(":"):
+        raise MiniYamlError(
+            f"{text!r} contains a colon that starts a mapping; quote the value", no
+        )
     if text in ("", "null", "~", "Null", "NULL"):
         return None
     if text in ("true", "True", "TRUE"):

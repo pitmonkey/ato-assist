@@ -223,3 +223,35 @@ def test_a_claim_citing_a_source_that_does_not_exist_yet_nudges(assessment: Path
     result = hookio.handle_pre(payload)
     assert decision(result) is None
     assert "ATO-E112" in reason(result)
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("state: asserted", "state: corroborated"),
+        ("  - ref: SRC-0007#privileged-access\n", ""),
+        ("confidence: high", "confidence: bogus"),
+    ],
+    ids=["valid-edit", "removes-source", "bad-enum"],
+)
+def test_an_edit_is_judged_exactly_as_the_written_file_would_be(
+    assessment: Path, old: str, new: str
+) -> None:
+    """Reconstruction must agree with the file the edit would produce, or the hook lies."""
+    from ato_assist import validate
+
+    path = assessment / "claims" / "CLM-0042-mfa.md"
+    path.write_text(VALID_CLAIM)
+    expected = VALID_CLAIM.replace(old, new)
+
+    reconstructed, mode = hookio.candidate_text(
+        "Edit", {"file_path": str(path), "old_string": old, "new_string": new}
+    )
+    assert mode == "exact"
+    assert reconstructed == expected
+
+    written, _ = hookio.candidate_text("Write", {"content": expected})
+    relative = "claims/CLM-0042-mfa.md"
+    assert validate.validate_document(relative, reconstructed or "") == validate.validate_document(
+        relative, written or ""
+    )

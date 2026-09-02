@@ -18,12 +18,12 @@ Tracks what the assessment is waiting on, and who it is waiting on.
 ### Raising one
 
 ```
-ato rfi new --question "<the question>" --asked-of "<who>" --reason <CLM-|ISM-|RSK- id>
+ato rfi new --question "<the question>" --asked-of "<who>" --resolves <CLM-|ISM-|RSK- id>
 ```
 
 Write the question so it can be answered without a conversation. "Please provide the current conditional access policy export" is answerable; "can you tell us about MFA" is not, and will come back as a meeting.
 
-`--reason` records what this unblocks. It is what makes an RFI more than a to-do: the status screen can then show what is stuck behind it.
+`--resolves` records what this unblocks. It is what makes an RFI more than a to-do: the status screen can then show what is stuck behind it.
 
 Raise one when the answer is genuinely not in the documents. Not when it is in a document you have not read — check `sources/` first.
 
@@ -36,6 +36,22 @@ ato rfi close RFI-0003 --source SRC-0011
 ```
 
 **An RFI closes because something landed in `sources/`.** A verbal answer in a meeting is a hunch until it is written down; if the customer answered in an email, ingest the email. The command refuses to close without a source, and that refusal is the point.
+
+### Withdrawing one
+
+```
+ato rfi withdraw RFI-0003 --reason "Raised against an incomplete ingest; Appendix B lists the diagram as provided." --superseded-by RFI-0021
+```
+
+Closing and withdrawing are different acts and the register must be able to tell them apart. A **closed** RFI was answered, and the answer is on file. A **withdrawn** one was mistaken — asked against an incomplete ingest, or already answered by something in `sources/` nobody had read, or simply the wrong question.
+
+`--reason` is required, where closing needs no reason at all. That asymmetry is deliberate: a withdrawn question is one the assessment got wrong, and without the reason the next person cannot tell a retracted question from a forgotten one. `--superseded-by` points at the question that replaced it, where there is one.
+
+Never edit a mistaken RFI into a different question. The record of having asked the wrong thing is part of the assessment.
+
+**If the record already explains itself, the command completes it rather than repeating it.** Run `ato rfi withdraw RFI-NNNN` with no `--reason` against an RFI that was set to `withdrawn` by hand: it fills in the missing `withdrawn_on`, leaves a date already there alone, and does not append a second explanation. It says which it did — `withdrawn`, or `already complete; nothing to fill in` — and touches the file only when something actually needed filling, so running it to check costs nothing and leaves no diff.
+
+Passing `--reason` to an RFI that already carries one is refused — a paragraph written when the mistake was fresh outranks a command-line string, and if it needs changing, edit the file.
 
 ### Listing and sending
 
@@ -60,5 +76,6 @@ ato commit --kind rfi --summary "RFI-0003 closed by customer response"
 
 - Never close an RFI on your own judgement, and never because the answer seems obvious.
 - Never batch unrelated questions into one RFI. One question, one ID, one thing to close.
+- Never close an RFI that was mistaken rather than answered. Withdraw it, with the reason.
 - Never raise an RFI for something a document already answers.
 - Do not soften a question to make it easier to ask. An assessment that gets a comfortable answer to a vague question has learned nothing.

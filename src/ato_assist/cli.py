@@ -32,6 +32,7 @@ from .schema import SCHEMAS
 from .status import render as status_render
 from .status import summary as status_summary
 from .tracking import (
+    MissingReason,
     TrackingError,
     close_rfi,
     export_rfis,
@@ -39,6 +40,7 @@ from .tracking import (
     open_rfi,
     open_rfis,
     set_phase,
+    withdraw_rfi,
 )
 from .validate import validate_repo
 
@@ -112,13 +114,15 @@ def _parser() -> argparse.ArgumentParser:
     move.add_argument("--root", default=".")
 
     ask = sub.add_parser("rfi", help="register, close, list or export requests for information")
-    ask.add_argument("action", choices=("new", "close", "list", "export"))
+    ask.add_argument("action", choices=("new", "close", "withdraw", "list", "export"))
     ask.add_argument("identifier", nargs="?", help="the RFI to close")
     ask.add_argument("--question")
     ask.add_argument("--asked-of")
-    ask.add_argument("--reason", action="append", default=[],
-                     help="a claim, control or risk this unblocks")
+    ask.add_argument("--resolves", action="append", default=[],
+                     help="a claim, control or risk this question unblocks")
     ask.add_argument("--source", help="the source that answered it")
+    ask.add_argument("--reason", help="why a withdrawn question was mistaken")
+    ask.add_argument("--superseded-by", help="the RFI that replaced it")
     ask.add_argument("--root", default=".")
 
     rk = sub.add_parser("risk", help="the risk matrix, and risks rated against it")
@@ -376,7 +380,7 @@ def _rfi(args: argparse.Namespace) -> int:
         if not args.question or not args.asked_of:
             print("--question and --asked-of are both required", file=sys.stderr)
             return 2
-        identifier = open_rfi(root, args.question, args.asked_of, resolves=args.reason)
+        identifier = open_rfi(root, args.question, args.asked_of, resolves=args.resolves)
         print(f"{identifier} opened, asked of {args.asked_of}")
         return 0
 
@@ -391,6 +395,27 @@ def _rfi(args: argparse.Namespace) -> int:
             print(str(exc), file=sys.stderr)
             return 1
         print(f"{args.identifier} closed by {args.source} ({path.name})")
+        return 0
+
+    if args.action == "withdraw":
+        if not args.identifier:
+            print("withdrawing an RFI needs its id", file=sys.stderr)
+            return 2
+        try:
+            path, changed = withdraw_rfi(
+                root, args.identifier, args.reason, args.superseded_by
+            )
+        except MissingReason as exc:
+            print(f"{exc}: a withdrawn question is one the assessment got wrong, and the "
+                  "record should say how", file=sys.stderr)
+            return 2
+        except TrackingError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        if changed:
+            print(f"{args.identifier} withdrawn ({path.name})")
+        else:
+            print(f"{args.identifier} was already complete; nothing to fill in")
         return 0
 
     if args.action == "export":

@@ -245,11 +245,16 @@ RFI = ItemSchema(
         Field("answer_source", kind="ref-list", required=False,
               ref_pattern=r"(?:SRC|EVD)-\d{4}"),
         Field("resolves", kind="id-list", required=False, ref_pattern=ANY_ID),
+        Field("withdrawn_on", kind="date", required=False),
+        Field("superseded_by", kind="id-list", required=False, ref_pattern=r"RFI-\d{4}"),
         *_COMMON,
     ),
     required_when=(
         RequiredWhen("answered_on", "state", ("answered",)),
         RequiredWhen("answer_source", "state", ("answered",)),
+        # A withdrawn question is one the assessment got wrong. Dating it is the least the
+        # record can do; the reason goes in the body, where a person will read it.
+        RequiredWhen("withdrawn_on", "state", ("withdrawn",)),
     ),
 )
 

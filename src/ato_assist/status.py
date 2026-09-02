@@ -21,6 +21,10 @@ __all__ = ["render", "summary"]
 
 _DECISION = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2})\s*[—–-]\s*(.+?)\s*$", re.MULTILINE)
 _PLACEHOLDER_FILES = ("process.yaml", "risk-matrix.yaml", "register-columns.yaml")
+# The interview records what the assessor could not answer as a checklist. Anything still
+# unticked after ingest is the seed list for the first round of RFIs.
+_OPEN_QUESTIONS = re.compile(r"^##\s+Open questions\s*$(.*?)(?=^##\s|\Z)", re.M | re.S)
+_UNTICKED = re.compile(r"^\s*- \[ \]\s+\S", re.M)
 _MAX_RFIS = 4
 
 
@@ -42,6 +46,7 @@ def summary(root: Path | str, today: datetime.date | None = None) -> dict[str, A
         "open_rfis": _open_rfis(index, today),
         "inbox": _inbox(index),
         "placeholders": _placeholders(root),
+        "open_questions": _open_questions(root),
     }
 
 
@@ -169,6 +174,12 @@ def _footer(root: Path, index: RepoIndex, today: datetime.date) -> list[str]:
     unresolved = _queued_terms(root)
     if gaps or unresolved:
         lines.append(f"GAPS   {gaps} open in tooling-gaps.md    GLOSSARY {unresolved} unresolved")
+    questions = _open_questions(root)
+    if questions:
+        lines.append(
+            f"ASK    {questions} unanswered from the interview — raise them as RFIs "
+            "if ingest has not answered them"
+        )
     for name in _placeholders(root):
         lines.append(f"!      {name} is a placeholder pending team review")
     _ = today
@@ -326,6 +337,24 @@ def _queued_terms(root: Path) -> int:
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.startswith("|") and not line.startswith("|--") and "| Term " not in line
     ])
+
+
+def _open_questions(root: Path) -> int:
+    """Unticked items under `## Open questions` in the interview notes.
+
+    Counted rather than interpreted: whether an ingested document answers a question is a
+    judgement someone makes and records by ticking the box. Guessing it from the text
+    would be the plugin inventing knowledge.
+    """
+    path = root / "notes" / "system-context.md"
+    if not path.is_file():
+        return 0
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return 0
+    section = _OPEN_QUESTIONS.search(text)
+    return len(_UNTICKED.findall(section.group(1))) if section else 0
 
 
 def _placeholders(root: Path) -> list[str]:

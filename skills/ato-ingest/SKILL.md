@@ -36,15 +36,23 @@ For a superseding revision, the report gives you the section counts. Open the ch
 
 Where a changed section underpins existing claims, list those claims for the assessor and ask whether each still holds. Do not silently update a claim.
 
-### 4. Ask whether anything closes an open RFI
+### 4. Work the interview's open questions
+
+`notes/system-context.md` carries a `## Open questions` checklist — what the assessor could not answer before the documents arrived. `ato status` counts the unticked ones. This is what ingest was for.
+
+For each unticked question, say whether the documents now answer it, and where. Then let the assessor tick it. **Mentioning a topic is not answering a question** — a document with a heading called "Authorisation boundary" and nothing under it answers nothing.
+
+Anything still unticked once every document is in becomes an RFI. That is the first round of questions to the customer, and it is already written.
+
+### 5. Ask whether anything closes an open RFI
 
 If `rfi/` has anything in `open` or `blocked`, list them with what arrived, and ask which — if any — this satisfies. An RFI is closed by a source landing, so record the closing source in `answer_source`. Never close one on your own judgement.
 
-### 5. Report the gaps, do not solve them
+### 6. Report the gaps, do not solve them
 
 Anything ingest could not read is a source with a stub and a question. Put the questions to the assessor as a batch. Do not attempt to transcribe a diagram or guess at a scanned document's contents.
 
-### 6. Commit
+### 7. Commit
 
 ```
 ato commit --kind ingest --summary "<what arrived>"

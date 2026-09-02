@@ -279,3 +279,42 @@ def test_coverage_survives_a_profile_typed_in_the_wrong_case(assessment: Path) -
     line = next(ln for ln in status.render(assessment, TODAY).splitlines() if "controls" in ln)
     assert "1/1 " not in line  # not falling back to the file count
     assert "%" in line
+
+
+def test_counts_unanswered_questions_from_the_interview(assessment: Path) -> None:
+    (assessment / "notes" / "system-context.md").write_text(
+        "# System context\n\n## Stated facts\n\nInternal to the agency.\n\n"
+        "## Open questions\n\n"
+        "- [ ] What data does it hold?\n"
+        "- [x] Who uses it?\n"
+        "- [ ] What is across the boundary?\n"
+    )
+    assert "2 unanswered from the interview" in status.render(assessment, TODAY)
+
+
+def test_says_nothing_when_every_question_has_been_answered(assessment: Path) -> None:
+    (assessment / "notes" / "system-context.md").write_text(
+        "# System context\n\n## Open questions\n\n- [x] Who uses it?\n"
+    )
+    assert "unanswered from the interview" not in status.render(assessment, TODAY)
+
+
+def test_says_nothing_when_the_interview_has_not_been_run(assessment: Path) -> None:
+    assert "unanswered from the interview" not in status.render(assessment, TODAY)
+
+
+def test_a_checklist_elsewhere_in_the_notes_is_not_counted(assessment: Path) -> None:
+    """Only the Open questions section counts; the rest of the file is free prose."""
+    (assessment / "notes" / "system-context.md").write_text(
+        "# System context\n\n## Assessor's hunches\n\n- [ ] a stray checkbox\n\n"
+        "## Open questions\n\n- [ ] What data does it hold?\n\n"
+        "## Something after\n\n- [ ] another stray\n"
+    )
+    assert "1 unanswered from the interview" in status.render(assessment, TODAY)
+
+
+def test_the_summary_carries_the_count_for_other_tools(assessment: Path) -> None:
+    (assessment / "notes" / "system-context.md").write_text(
+        "## Open questions\n\n- [ ] One?\n- [ ] Two?\n"
+    )
+    assert status.summary(assessment, TODAY)["open_questions"] == 2

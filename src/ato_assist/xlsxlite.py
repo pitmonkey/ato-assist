@@ -12,6 +12,12 @@ import zipfile
 from pathlib import Path
 from xml.sax.saxutils import escape
 
+# A fixed timestamp for every entry. An assessment is a git repository, and a workbook
+# carrying the moment it was written produces a diff on every export even when nothing
+# changed — which is noise at best, and at worst a dirty tree that blocks a branch switch.
+# 1980-01-01 is the earliest a zip can represent.
+_EPOCH = (1980, 1, 1, 0, 0, 0)
+
 __all__ = ["write"]
 
 _CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8"?>
@@ -44,11 +50,14 @@ def write(path: Path, rows: list[list[str]], sheet_name: str = "Register") -> Pa
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", _CONTENT_TYPES)
-        archive.writestr("_rels/.rels", _ROOT_RELS)
-        archive.writestr("xl/workbook.xml", workbook)
-        archive.writestr("xl/_rels/workbook.xml.rels", _WORKBOOK_RELS)
-        archive.writestr("xl/worksheets/sheet1.xml", _sheet(rows))
+        for name, content in (
+            ("[Content_Types].xml", _CONTENT_TYPES),
+            ("_rels/.rels", _ROOT_RELS),
+            ("xl/workbook.xml", workbook),
+            ("xl/_rels/workbook.xml.rels", _WORKBOOK_RELS),
+            ("xl/worksheets/sheet1.xml", _sheet(rows)),
+        ):
+            archive.writestr(zipfile.ZipInfo(name, _EPOCH), content)
     return path
 
 

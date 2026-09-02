@@ -17,7 +17,33 @@ from .repo import load_assessment, load_yaml
 from .session import PLUGIN_ROOT
 from .status import summary
 
-__all__ = ["ExportError", "register_csv", "register_xlsx", "report"]
+__all__ = ["ExportError", "PROSE_SECTIONS", "register_csv", "register_xlsx", "report"]
+
+# The sections only the assessor can write, and where each one lives in the assessment.
+# They are merged into the report at export time so that `outputs/` stays generated and
+# nothing a person wrote is ever destroyed by regenerating it. Each is a placeholder in
+# config/report-template.md and a file in the assessment's `report/` directory.
+PROSE_SECTIONS = (
+    "executive-summary",
+    "boundary",
+    "method",
+    "findings",
+    "recommendation",
+)
+
+_PROMPTS = {
+    "executive-summary": "What the system is, what was assessed, the overall risk "
+                         "position, and the single most important thing the authorising "
+                         "officer needs to know.",
+    "boundary": "What sits inside the boundary, what sits outside, and every interface "
+                "that crosses it. Cite the document that authorises it.",
+    "method": "What was read, who was interviewed, what was observed and what was tested "
+              "— and plainly what was NOT done, and why.",
+    "findings": "The items that must be addressed before, or as a condition of, "
+                "authorisation.",
+    "recommendation": "The assessor's position, with the residual risk the authorising "
+                      "officer is being asked to accept.",
+}
 
 
 class ExportError(RuntimeError):
@@ -69,6 +95,8 @@ def report(root: Path | str, today: datetime.date | None = None) -> Path:
     counts = summary(root, today)
 
     filled = template
+    for section in PROSE_SECTIONS:
+        filled = filled.replace("{" + section.replace("-", "_") + "}", _prose(root, section))
     for key, value in {
         "marking": _marking(root),
         "system_name": _system(root),
@@ -93,6 +121,21 @@ def report(root: Path | str, today: datetime.date | None = None) -> Path:
 
 
 # --- pieces -------------------------------------------------------------------------
+
+
+def _prose(root: Path, section: str) -> str:
+    """What the assessor wrote for a section, or the prompt asking them to write it."""
+    path = root / "report" / f"{section}.md"
+    try:
+        written = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        written = ""
+    if written:
+        return written
+    return (
+        f"_Not yet written. This section is yours: write it to `report/{section}.md`._"
+        f"\n\n_{_PROMPTS[section]}_"
+    )
 
 
 def _columns(root: Path) -> list[dict[str, Any]]:

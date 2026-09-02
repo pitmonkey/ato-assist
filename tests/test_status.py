@@ -187,3 +187,27 @@ def test_only_documents_that_have_not_been_ingested_count_as_waiting(
     assert "waiting" not in status.render(assessment, TODAY)
     (assessment / "inbox" / "policy.md").write_text("# Policy\n\nMore.\n")
     assert "1 file waiting" in status.render(assessment, TODAY)
+
+
+def test_control_coverage_counts_against_the_framework_profile_not_the_files(
+    assessment: Path,
+) -> None:
+    add(
+        assessment,
+        "controls/ism/ISM-0421.md",
+        id="ISM-0421",
+        framework="ism",
+        title="Authentication",
+        status="satisfied",
+        claims=["CLM-0001"],
+        confidence="medium",
+        method="document-review",
+        updated=TODAY,
+    )
+    line = next(
+        line for line in status.render(assessment, TODAY).splitlines() if "controls" in line
+    )
+    # One assessed control out of every ISM control that applies at PROTECTED.
+    assert "1/" in line
+    assert "/1 " not in line
+    assert "%" in line

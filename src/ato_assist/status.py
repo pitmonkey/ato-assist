@@ -14,7 +14,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from . import checks
+from . import checks, oscal
 from .repo import RepoIndex, load_yaml
 
 __all__ = ["render", "summary"]
@@ -103,8 +103,10 @@ def _coverage_block(index: RepoIndex, today: datetime.date) -> list[str]:
     controls = _states(index, "controls", field="status")
     if controls:
         assessed = sum(count for state, count in controls.items() if state != "not-assessed")
+        total = _framework_total(index) or sum(controls.values())
+        percent = f" ({assessed * 100 // total}%)" if total else ""
         lines.append(
-            f"  controls   {assessed}/{sum(controls.values())} assessed   " + _tally(controls)
+            f"  controls   {assessed}/{total} assessed{percent}   " + _tally(controls)
         )
     claims = _states(index, "claims")
     if claims:
@@ -170,6 +172,24 @@ def _footer(root: Path, index: RepoIndex, today: datetime.date) -> list[str]:
 
 
 # --- counters -----------------------------------------------------------------------
+
+
+def _framework_total(index: RepoIndex) -> int:
+    """How many controls the configured profile actually contains.
+
+    Coverage measured against the files on disk would read 100% the moment the first
+    control is written, which is worse than no number at all.
+    """
+    frameworks = index.assessment.get("frameworks") or []
+    if not isinstance(frameworks, list) or not frameworks:
+        return 0
+    first = frameworks[0]
+    if not isinstance(first, dict) or first.get("id") != "ism":
+        return 0
+    try:
+        return len(oscal.load().profile(str(first.get("profile", ""))))
+    except oscal.CatalogueError:
+        return 0
 
 
 def _states(index: RepoIndex, kind: str, field: str = "state") -> dict[str, int]:

@@ -14,6 +14,8 @@ from pathlib import Path
 
 from .ingest import IngestError
 from .ingest import run as ingest_run
+from .oscal import CatalogueError
+from .oscal import load as load_catalogue
 from .repo import find_root_from
 from .scaffold import ScaffoldError, Spec, create
 from .schema import SCHEMAS
@@ -36,6 +38,7 @@ def main(argv: list[str] | None = None) -> int:
         "next-id": _next_id,
         "ingest": _ingest,
         "status": _status,
+        "controls": _controls,
     }[args.command]
     return handler(args)
 
@@ -68,6 +71,12 @@ def _parser() -> argparse.ArgumentParser:
 
     take = sub.add_parser("ingest", help="process inbox/ into sources/")
     take.add_argument("root", nargs="?", default=".")
+
+    cat = sub.add_parser("controls", help="read the framework control catalogue")
+    cat.add_argument("control", nargs="?", help="a control ID to show in full")
+    cat.add_argument("--search", help="find controls mentioning this text")
+    cat.add_argument("--profile", help="controls applying at a classification")
+    cat.add_argument("--limit", type=int, default=20)
 
     nid = sub.add_parser("next-id", help="the next unused ID in a contract directory")
     nid.add_argument("directory", choices=sorted(SCHEMAS))
@@ -175,6 +184,54 @@ def _ingest(args: argparse.Namespace) -> int:
         print(f"gap logged: {gap.split('—')[0].strip()}")
     for question in report.questions:
         print(f"question: {question}")
+    return 0
+
+
+_CONTROL_LIST_HEADER = "{count} controls apply at {profile} (ISM {version})"
+
+
+def _controls(args: argparse.Namespace) -> int:
+    """Read the catalogue. Never recite control text from memory — read it from here."""
+    try:
+        catalogue = load_catalogue()
+    except CatalogueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    if args.control:
+        control = catalogue.control(args.control)
+        if control is None:
+            print(f"{args.control} is not in the ISM {catalogue.version} catalogue",
+                  file=sys.stderr)
+            return 1
+        print(f"{control.id}  [{control.topic}]")
+        print(f"  {control.statement}")
+        print(f"  applies at {', '.join(control.applicability)}", end="")
+        print(f"; Essential Eight {', '.join(control.essential_eight)}"
+              if control.essential_eight else "")
+        return 0
+
+    if args.search:
+        hits = catalogue.search(args.search)[: args.limit]
+        for control in hits:
+            print(f"{control.id}  {control.title}")
+        if not hits:
+            print(f"nothing in ISM {catalogue.version} mentions {args.search!r}")
+        return 0
+
+    if args.profile:
+        selected = catalogue.profile(args.profile)
+        print(_CONTROL_LIST_HEADER.format(
+            count=len(selected), profile=args.profile, version=catalogue.version
+        ))
+        for control in selected[: args.limit]:
+            print(f"{control.id}  {control.title}")
+        if len(selected) > args.limit:
+            print(f"... and {len(selected) - args.limit} more")
+        return 0
+
+    print(f"ISM {catalogue.version}, {len(catalogue.controls)} controls, from "
+          f"{catalogue.source} (retrieved {catalogue.retrieved})")
     return 0
 
 

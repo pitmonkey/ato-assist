@@ -115,3 +115,34 @@ def test_ingest_surfaces_questions_it_could_not_answer_itself(
     capsys.readouterr()
     cli.main(["ingest", str(tmp_path)])
     assert "diagram.vsdx" in capsys.readouterr().out
+
+
+def test_controls_search_returns_candidates_for_mapping(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["controls", "--search", "multi-factor authentication"]) == 0
+    out = capsys.readouterr().out
+    assert "ISM-" in out
+    assert len(out.splitlines()) <= 21  # a shortlist to judge, not a catalogue dump
+
+
+def test_controls_profile_reports_how_many_apply(capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["controls", "--profile", "PROTECTED"]) == 0
+    assert "apply at PROTECTED" in capsys.readouterr().out
+
+
+def test_controls_shows_one_control_in_full(capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["controls", "ISM-0421"]) == 0
+    out = capsys.readouterr().out
+    assert "ISM-0421" in out
+    assert "applies at" in out
+
+
+def test_an_unknown_control_exits_one(capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["controls", "ISM-9999"]) == 1
+    assert "ISM-9999" in capsys.readouterr().err
+
+
+def test_controls_reports_the_catalogue_version(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.main(["controls", "--profile", "PROTECTED"])
+    assert "ISM " in capsys.readouterr().out

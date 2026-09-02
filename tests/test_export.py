@@ -169,3 +169,48 @@ def test_the_report_says_how_much_of_the_evidence_is_missing(assessment: Path) -
 def test_a_report_with_nothing_assessed_says_so_plainly(assessment: Path) -> None:
     text = export.report(assessment, TODAY).read_text()
     assert "No controls have been assessed" in text
+
+
+def test_the_register_leads_with_what_has_not_been_rated(assessment: Path) -> None:
+    """A board reads top-down; outstanding work belongs above finished judgements."""
+    (assessment / "risks" / "RSK-0003-unrated.md").write_text(
+        frontmatter.render(
+            {
+                "id": "RSK-0003",
+                "title": "The package cannot support the decision",
+                "statement": "A decision taken on this package is not an informed one.",
+                "threat": "T",
+                "vulnerability": "V",
+                "consequence": "C",
+                "refs": ["SRC-0001"],
+                "state": "draft",
+                "updated": TODAY,
+            },
+            "",
+        )
+    )
+    rows = list(csv.reader(export.register_csv(assessment, TODAY).read_text().splitlines()))
+    assert rows[2][0] == "RSK-0003"
+    assert "not been rated" in rows[2][rows[1].index("Risk rating")]
+
+
+def test_the_report_leads_with_what_has_not_been_rated(assessment: Path) -> None:
+    (assessment / "risks" / "RSK-0003-unrated.md").write_text(
+        frontmatter.render(
+            {
+                "id": "RSK-0003",
+                "title": "The package cannot support the decision",
+                "statement": "Not an informed decision.",
+                "threat": "T",
+                "vulnerability": "V",
+                "consequence": "C",
+                "refs": ["SRC-0001"],
+                "state": "draft",
+                "updated": TODAY,
+            },
+            "",
+        )
+    )
+    summary = export.report(assessment, TODAY).read_text()
+    first = next(line for line in summary.splitlines() if line.startswith("- **RSK"))
+    assert "RSK-0003" in first

@@ -23,6 +23,7 @@ Split compound sentences. "Access is restricted and logged" is two claims, becau
 
 ## Hard rules
 
+0. **Framework control text is not a claim.** A plan built from a catalogue template repeats the framework's own requirement wording — "the organisation implements...", "the information system enforces..." — usually in a labelled requirement or control box. That is the catalogue saying what is required, not this system saying what it does. Extract only what the document asserts about *this* system: the implementation narrative, the responsible party, the configuration described. If a section contains nothing but restated framework text, return no candidates for it and say so as an absence.
 1. **Use the document's words.** Do not paraphrase into what you think it meant. If the sentence is vague, extract the vague sentence — the vagueness is itself a finding.
 2. **Every candidate carries its reference.** `SRC-NNNN#<heading-slug>` for the section it came from, plus a verbatim quote. A candidate with no reference is discarded, not guessed at.
 3. **Never infer.** If a control is implied but never stated, that is not a claim. Note it separately as an absence.
@@ -47,4 +48,6 @@ undefined_terms: [SIEM, PAM]
 
 `kind` says what sort of assertion it is, so the assessor can triage: `control-assertion` (something is done), `architecture` (something exists or connects), `scope` (something is in or out), `responsibility` (someone owns something).
 
-If the section you were given contains no claims, return empty lists. That is a real answer.
+Unless told otherwise, return at most **three** candidates per control or section. A control-structured plan will happily yield twenty near-duplicates; three well-chosen ones are more useful and are reviewable by a human.
+
+If the section you were given contains no claims, return empty lists. That is a real answer, and on a section that only restates the framework it is the right one.

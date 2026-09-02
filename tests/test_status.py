@@ -318,3 +318,40 @@ def test_the_summary_carries_the_count_for_other_tools(assessment: Path) -> None
         "## Open questions\n\n- [ ] One?\n- [ ] Two?\n"
     )
     assert status.summary(assessment, TODAY)["open_questions"] == 2
+
+
+def test_a_criterion_that_cannot_yet_apply_is_not_counted_as_met(assessment: Path) -> None:
+    """2/3 on an assessment with no claims in it is a number someone will quote."""
+    path = assessment / "assessment.yaml"
+    path.write_text(path.read_text().replace("phase: intake", "phase: claims-extraction"))
+    text = status.render(assessment, TODAY)
+    assert "phase: claims-extraction (0/0)" in text
+    assert "[-] no-draft-claims" in text
+    assert "[x]" not in text
+
+
+def test_the_fraction_grows_as_criteria_become_applicable(assessment: Path) -> None:
+    path = assessment / "assessment.yaml"
+    path.write_text(path.read_text().replace("phase: intake", "phase: claims-extraction"))
+
+    claim(assessment, 1)
+    # Two criteria constrain claims and can now speak; the third constrains sources.
+    assert "phase: claims-extraction (2/2)" in status.render(assessment, TODAY)
+
+    add(
+        assessment,
+        "sources/SRC-0002-doc/index.md",
+        id="SRC-0002",
+        title="Uncited",
+        kind="document",
+        received=TODAY,
+        origin="owner",
+        classification="PROTECTED",
+        hash="sha256:abc",
+        state="ingested",
+        updated=TODAY,
+    )
+    text = status.render(assessment, TODAY)
+    assert "phase: claims-extraction (2/3)" in text
+    assert "[ ] every-source-claimed" in text
+    assert "[x] no-draft-claims" in text

@@ -80,9 +80,11 @@ def _headline(index: RepoIndex, today: datetime.date) -> str:
     data = classification.get("data", "?") if isinstance(classification, dict) else "?"
     phase = index.assessment.get("phase", "unknown")
     results = checks.evaluate_phase(index, str(phase), today)
-    met = sum(1 for result in results if result.passed)
+    # A criterion that cannot yet say anything is left out of both halves of the fraction.
+    applicable = [result for result in results if result.applicable]
+    met = sum(1 for result in applicable if result.passed)
     left = f"{name} [{marking}] · {data} data"
-    right = f"phase: {phase} ({met}/{len(results)})"
+    right = f"phase: {phase} ({met}/{len(applicable)})"
     return f"{left}{' ' * max(1, 98 - len(left) - len(right))}{right}"
 
 
@@ -94,8 +96,11 @@ def _criteria_block(index: RepoIndex, today: datetime.date) -> list[str]:
     lines = [f"EXIT CRITERIA — {phase}"]
     for result in results:
         mark = "x" if result.passed else " "
-        lines.append(f"  [{mark}] {result.criterion_id:<28} {result.actual}")
-        if not result.passed and result.offenders:
+        actual = result.actual
+        if not result.applicable:
+            mark, actual = "-", "nothing to check yet"
+        lines.append(f"  [{mark}] {result.criterion_id:<28} {actual}")
+        if result.applicable and not result.passed and result.offenders:
             shown = ", ".join(result.offenders[:2])
             more = f"  (+{len(result.offenders) - 2})" if len(result.offenders) > 2 else ""
             lines.append(f"        {shown}{more}")

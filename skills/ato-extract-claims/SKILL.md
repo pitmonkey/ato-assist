@@ -25,7 +25,17 @@ The `sources never cited by a claim` count is the backlog. Work one source at a 
 
 ### 2. Dispatch the extractor, do not read the document yourself
 
-For each section of the source, dispatch the `extractor` sub-agent against `sources/SRC-NNNN-<slug>/`. It reads in a fresh context and returns candidates, absences and undefined terms — never the document.
+Dispatch the `extractor` sub-agent against **batches of sections**, not against each section and not against the whole source.
+
+Aim for six to twelve dispatches for a large document, each covering a coherent group of sections — a chapter, a control family, a topic. On a 400-section SSP that is roughly thirty sections per dispatch. One agent per section would be hundreds of dispatches for one document; one agent for the whole source cannot hold it. Both are wrong, in opposite directions.
+
+Group by what the document is about, not by file count. Front matter, then AC/AT, AU/CA/CM, and so on for a control-structured document; by chapter for a narrative one. A batch that spans unrelated material produces vaguer candidates.
+
+Tell each extractor, explicitly, in the dispatch:
+
+- The source ID and the exact section files it covers.
+- **A cap of about three candidates per control or section.** Left uncapped on a control-structured SSP, extraction emits a thousand near-duplicates.
+- **Framework control text is never a claim.** An SSP built from a catalogue template quotes the catalogue's own requirement wording in every control block. That text says what the framework requires, not what this system does, and a claim extracted from it is a claim about the catalogue. On an 800-53 or ISM-templated document this is the single most important instruction in the dispatch — without it, most of what comes back is restated framework text wearing a claim's frontmatter.
 
 **Do not read a large document into this conversation.** Once an SSP is in the main context, every later step in the session is worse and the context is gone for the work that actually needs it.
 
@@ -79,5 +89,7 @@ ato commit --kind extract --summary "SRC-0007: 31 claims"
 
 - A claim with no source is refused by the contract hook. That is the mechanism working — find the reference, never reword the claim to get past it.
 - Never merge two assertions into one claim because they are adjacent. Different evidence, different claim.
+- Never extract a claim from framework control text, however specific it sounds. "The organisation implements multi-factor authentication" in a requirement box is the catalogue talking.
+- If a source is marked `anchors_unavailable`, it has no sections to cite. Do not extract against it — say so, and offer to prepare the document and re-ingest.
 - Never write a claim from the interview notes. `notes/system-context.md` has no source and is not a document; it is context, not assertion.
 - Never assess a claim here. Whether it is met is `/ato-reconcile-evidence` and `/ato-map-controls`.

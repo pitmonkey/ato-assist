@@ -35,6 +35,14 @@ CORPUS = [
     "        args: {path: notes/system-context.md}\n",
     "includes: []\nexcludes: []\n",
     "ratings:\n  rare: {minor: low, severe: high}\n  likely: {minor: medium, severe: extreme}\n",
+    # Prose. An apostrophe mid-word is the single most common thing in an assessment
+    # that a naive quote-tracker mistakes for an opening quote.
+    "owner: the organisation's security team\n",
+    "statement: \"The system's operator asserts it's enforced.\"\n",
+    "note: says \"hello\" mid-line\n",
+    "tags:\n  - the owner's view\n  - a second item\n",
+    "note: the team's view  # trailing comment\n",
+    "args: {dir: claims, note: the owner's view}\n",
 ]
 
 

@@ -36,6 +36,8 @@ The remediation frame is what makes it dangerous. You have just been shown you w
 
 So for each finding: open the section it cites, and read it. Confirm the quote, confirm the section number, confirm the scope of the claim being made. A finding that is right in a narrower form is the common case, and the narrow form is usually the better finding.
 
+**Confirm its numbers too.** A count in a finding is as unverified as its reasoning, and a reviewer's figure copied into an assessment carries the reviewer's authority without its evidence. In one real case a section count taken from a challenge report reached the final report and was wrong — while the assessor's own earlier table, built by counting, had the right figure all along.
+
 ### 4. Put the findings to the assessor, unfiltered
 
 Show every finding, including the ones your verification narrowed. Do not pre-filter, do not soften, and do not argue with the reviewer on the assessment's behalf. The assessor decides which are real; your job was to check what each one actually says.

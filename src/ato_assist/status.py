@@ -40,6 +40,8 @@ def summary(root: Path | str, today: datetime.date | None = None) -> dict[str, A
         "claims": _states(index, "claims"),
         "evidence": _states(index, "evidence"),
         "controls": _states(index, "controls", field="status"),
+        "controls_in_profile": _framework_total(index),
+        "unevidenced_claims_total": len(index.of_kind("claims")),
         "risks": _states(index, "risks"),
         "sources": _states(index, "sources"),
         "unevidenced_claims": _unevidenced(index),

@@ -465,3 +465,17 @@ def test_a_quote_against_a_source_that_does_not_exist_is_not_double_reported(
     found = codes(validate.validate_repo(assessment, TODAY))
     assert "ATO-E112" in found
     assert "ATO-E310" not in found
+
+
+def test_the_assessor_recorded_as_the_system_owner_is_flagged(assessment: Path) -> None:
+    """Every init field is answered before the assessment knows anything, and the owner
+    is printed on page one of the report as though it were established."""
+    path = assessment / "assessment.yaml"
+    path.write_text(path.read_text().replace("owner: business.owner@agency.gov.au", "owner: pete"))
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E311"]
+    assert findings and findings[0].level == "warn"
+    assert "owner" in findings[0].message
+
+
+def test_a_distinct_owner_and_assessor_are_not_flagged(assessment: Path) -> None:
+    assert "ATO-E311" not in codes(validate.validate_repo(assessment, TODAY))

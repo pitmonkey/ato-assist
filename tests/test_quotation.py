@@ -136,3 +136,29 @@ def test_a_quote_spanning_two_columns_of_one_row_still_does_not_match() -> None:
     assert not quotation.contains(
         chunk, "Not applicable The control is inherited from the platform."
     )
+
+
+def test_a_simple_tables_header_rule_is_dropped() -> None:
+    """A pandoc simple table underlines its header with runs of hyphens, not a border."""
+    chunk = (
+        "**Implementation Status**   **Count**\n"
+        "--------------------------- ----------\n"
+        "Not applicable              253\n"
+        "Implemented                 61\n"
+    )
+    assert quotation.flatten(chunk) == (
+        "**Implementation Status** **Count** Not applicable 253 Implemented 61"
+    )
+
+
+@pytest.mark.parametrize(
+    "rule",
+    ["--------- ------", "=====  ====", "   ----------   ", "--- --- ---"],
+)
+def test_rules_of_every_shape_are_dropped(rule: str) -> None:
+    assert quotation.flatten(f"Heading\n{rule}\nBody text.") == "Heading Body text."
+
+
+@pytest.mark.parametrize("prose", ["- a bullet point", "a - b", "the range 5 - 10"])
+def test_prose_containing_hyphens_survives(prose: str) -> None:
+    assert prose.strip("- ") in quotation.flatten(prose)

@@ -78,7 +78,7 @@ def report(root: Path | str, today: datetime.date | None = None) -> Path:
         "frameworks": _frameworks(assessment),
         "scope_includes": _bullets(scope.get("includes") if isinstance(scope, dict) else []),
         "scope_excludes": _bullets(scope.get("excludes") if isinstance(scope, dict) else []),
-        "control_summary": _control_summary(counts),
+        "control_summary": _control_summary(counts) + "\n\n" + _evidence_summary(counts),
         "risk_summary": _risk_summary(root),
         "sources_table": _sources_table(root),
         "control_table": "See the control files under `controls/`.",
@@ -149,10 +149,45 @@ def _bullets(values: Any) -> str:
 
 
 def _control_summary(counts: dict[str, Any]) -> str:
+    """Counts with the universe they are counted against.
+
+    A status line on its own invites being read as the whole picture: "not-assessed: 47"
+    with no denominator anywhere in the document lets a reader take 47 for the control
+    universe. The denominator is the profile that applies at this classification, which
+    `ato status` already holds.
+    """
     controls = counts.get("controls") or {}
     if not controls:
         return "_No controls have been assessed._"
-    return "\n".join(f"- {status}: {count}" for status, count in sorted(controls.items()))
+    total = int(counts.get("controls_in_profile") or 0) or sum(controls.values())
+    assessed = sum(count for status, count in controls.items() if status != "not-assessed")
+    lines = [
+        f"**{len(controls) and sum(controls.values())} of {total} controls in the "
+        f"applicable profile have been written up; {assessed} assessed.**",
+        "",
+        *[f"- {status}: {count}" for status, count in sorted(controls.items())],
+    ]
+    return "\n".join(lines)
+
+
+def _evidence_summary(counts: dict[str, Any]) -> str:
+    """How much of the assessment rests on assertion alone.
+
+    An assessment where every claim is unevidenced has a finding about itself, and it
+    belongs in the report body rather than only in a status screen the board never sees.
+    """
+    claims = int(counts.get("unevidenced_claims_total") or 0)
+    if not claims:
+        return "_No claims have been extracted._"
+    unevidenced = int(counts.get("unevidenced_claims") or 0)
+    plural = "s" if claims != 1 else ""
+    if not unevidenced:
+        return f"{claims} claim{plural} extracted, all of them supported by evidence."
+    return (
+        f"{claims} claim{plural} extracted, of which **{unevidenced} have no evidence** — "
+        "the system owner's assertion, not yet corroborated. What each needs is recorded "
+        "in the outstanding requests for information at Appendix C."
+    )
 
 
 def _risk_summary(root: Path) -> str:

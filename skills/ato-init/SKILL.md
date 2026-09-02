@@ -62,6 +62,14 @@ This creates the layout, copies `process.yaml`, `risk-matrix.yaml` and `register
 
 It then reads back everything it recorded, and says how many controls the chosen profile selects. **Read that output to the assessor.** A setting nothing echoes is a setting nobody checks, and a profile selecting zero controls is the failure most worth catching here rather than three phases later.
 
+### 4b. Say which of these answers are provisional
+
+Everything asked above is being answered **before the assessment has read anything**, and several of these fields are printed on the first page of the report as though they were findings — the system owner most of all.
+
+Say so, once, plainly: these are the assessor's current understanding, they will be checked against the documents at ingest, and `/ato-export` re-reads them before anything is generated. Then record in `decisions.md` which ones were guesses.
+
+The one that has actually gone wrong: the system owner was recorded as the assessor, and stayed that way into a report skeleton.
+
 ### 5. Record the setup decisions
 
 Append one line to `decisions.md` for each judgement made above that was not obvious — particularly the marking, the framework, and the inbox retention choice. Date, phase, decision, why, who.

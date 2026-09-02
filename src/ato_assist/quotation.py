@@ -22,8 +22,12 @@ import re
 
 __all__ = ["contains", "flatten"]
 
-# A row of +---+===+ characters: table drawing, never content.
+# A row of +---+===+ characters: grid-table drawing, never content.
 _BORDER = re.compile(r"^\s*[+|][-=+|\s]*$")
+# A simple table underlines its header with runs of hyphens instead of drawing a border,
+# and a setext heading underlines with = or -. Neither is content, and neither is prose:
+# a line that is nothing but rules of two or more dashes cannot be a sentence.
+_RULE = re.compile(r"^\s*[-=]{2,}(?:\s+[-=]{2,})*\s*$")
 # A leading or trailing cell pipe. A pipe inside a sentence is content and is left alone.
 _EDGE_PIPE = re.compile(r"^\s*\|\s?|\s?\|\s*$")
 # A separator with nothing but whitespace to its left. Pandoc repeats every column
@@ -52,7 +56,7 @@ def flatten(text: str) -> str:
     cleaned = [
         " ".join(_ESCAPE.sub(r"\1", _strip_walls(line)).split())
         for line in text.splitlines()
-        if not _BORDER.match(line)
+        if not _BORDER.match(line) and not _RULE.match(line)
     ]
     return " ".join(part for part in cleaned if part).strip()
 

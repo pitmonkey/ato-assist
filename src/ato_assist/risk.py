@@ -92,7 +92,11 @@ def rate_all(root: Path | str) -> list[RatedRisk]:
         likelihood, impact = data.get("likelihood"), data.get("impact")
         severity = matrix.severity(likelihood, impact)
         problem = ""
-        if severity is None:
+        if severity is None and not (likelihood or impact):
+            # A draft the assessor has not rated yet is not a defect; it is the normal
+            # state of a risk between being drafted and being judged.
+            problem = "has not been rated yet"
+        elif severity is None:
             unknown = [
                 str(value)
                 for value, scale in ((likelihood, matrix.likelihood), (impact, matrix.impact))

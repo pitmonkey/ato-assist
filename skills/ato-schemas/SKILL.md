@@ -48,12 +48,12 @@ Links point downward, toward evidence, and are never mirrored back: claim → so
 | **claim** | `id title statement source state confidence method updated` | `state`: draft, asserted, corroborated, refuted, retired |
 | **evidence** | `id title bears_on direction artifact method collected collected_by state updated` | `direction`: supports, refutes, mixed. `artifact` is a path — a blob cannot carry frontmatter |
 | **control** | `id framework title status confidence method updated` | `status`: not-assessed, satisfied, partially-satisfied, not-satisfied, not-applicable, inherited |
-| **risk** | `id title statement threat vulnerability consequence likelihood impact refs state updated` | `state`: draft, open, mitigating, accepted, closed. Severity is derived from `risk-matrix.yaml`, never stored |
+| **risk** | `id title statement threat vulnerability consequence refs state updated` | `state`: draft, open, mitigating, accepted, closed. Severity is derived from `risk-matrix.yaml`, never stored |
 | **rfi** | `id title question asked_of asked_on state updated` | `state`: open, answered, withdrawn, blocked |
 
 `confidence` is low, medium or high. `method` is document-review, interview, observation, config-review, automated-scan or ad-hoc.
 
-Conditionally required: a risk needs `owner` once it leaves `draft` and `disposition` once `accepted`; an RFI needs `answered_on` and `answer_source` once `answered`.
+Conditionally required: a risk needs `owner`, `likelihood` and `impact` once it leaves `draft`, and `disposition` once `accepted`. The rating is the assessor's judgement, so a draft is filed without one and `ato risk list` shows it as `has not been rated yet`; an RFI needs `answered_on` and `answer_source` once `answered`.
 
 ## Why a write gets denied
 

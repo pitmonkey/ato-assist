@@ -447,6 +447,8 @@ def _sweep_ratings(index: Any, matrix: Any) -> list[Finding]:
     findings: list[Finding] = []
     for item in index.of_kind("risks"):
         likelihood, impact = item.data.get("likelihood"), item.data.get("impact")
+        if not likelihood and not impact:
+            continue  # a draft awaiting the assessor's judgement, not a bad rating
         if matrix.severity(likelihood, impact) is None:
             findings.append(_error(
                 "ATO-E303", item.path, "likelihood",

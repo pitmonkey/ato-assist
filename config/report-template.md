@@ -15,7 +15,7 @@ is tracked in config/register-columns.yaml alongside the register format.
 
 ## 1. Executive summary
 
-Two or three paragraphs: what the system is, what was assessed, the overall risk position, and the single most important thing the authorising officer needs to know.
+{executive_summary}
 
 ## 2. Scope
 
@@ -27,11 +27,11 @@ Two or three paragraphs: what the system is, what was assessed, the overall risk
 
 ### 2.3 Authorisation boundary
 
-What sits inside the boundary, what sits outside, and every interface that crosses it. Cite the document that authorises this.
+{boundary}
 
 ## 3. Method
 
-What was read, who was interviewed, what was observed, and what was tested. State plainly what was *not* done and why — an assessment that hides its own gaps is not usable.
+{method}
 
 Documents assessed are listed at Appendix A with their revision and receipt date.
 
@@ -49,11 +49,11 @@ The full risk register accompanies this report.
 
 ## 6. Findings requiring attention
 
-The items the assessor believes must be addressed before, or as a condition of, authorisation.
+{findings}
 
 ## 7. Recommendation
 
-The assessor's position, stated plainly, with the residual risk the authorising officer is being asked to accept.
+{recommendation}
 
 ## Appendix A — Sources
 

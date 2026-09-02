@@ -48,9 +48,19 @@ Everything lands in `outputs/` with the assessment marking on the first line of 
 
 **Unrated risks come first, then the rated ones worst-first.** An unrated risk is outstanding work rather than a low severity; sorting it to the bottom would make the register imply it is the least severe, which is the one thing it cannot support. If the top of a register is a block of unrated rows, that is the register reporting accurately that the assessment is not finished.
 
-### 3. Write the prose, do not invent the numbers
+### 3. Write the prose into `report/`, never into `outputs/`
 
-The report skeleton arrives with the counts, the risk list, the source table and the open RFIs already filled in. The sections that remain are judgement: the executive summary, the method, the findings, the recommendation.
+The report skeleton arrives with the counts, the risk list, the source table and the open RFIs already filled in. The sections that remain are judgement, and each has a file:
+
+| Section | File |
+|---|---|
+| Executive summary | `report/executive-summary.md` |
+| Authorisation boundary | `report/boundary.md` |
+| Method | `report/method.md` |
+| Findings requiring attention | `report/findings.md` |
+| Recommendation | `report/recommendation.md` |
+
+`ato export` merges each one into the report where it exists and leaves a prompt where it does not. **That is what makes the guardrail against editing `outputs/` keepable:** you never need to, because the prose lives in the assessment under version control and survives every regeneration.
 
 Draft them **with** the assessor, from what is in the files. Every statement in the report must be traceable to a claim, a control or a risk. If you cannot point to the file behind a sentence, that sentence does not go in.
 
@@ -66,7 +76,8 @@ ato commit --kind export --summary "risk register and report for the September b
 
 ## Guardrails
 
-- **Never hand-edit anything in `outputs/`.** It is regenerated; an edit there is lost on the next export and disagrees with the files in the meantime. Fix the source file and export again.
+- **Never hand-edit anything in `outputs/`.** It is regenerated; an edit there is lost on the next export. Prose goes in `report/`, numbers come from the files — there is nothing left that has to be typed into an output.
+- **Numbers in your prose will drift.** "253 not-applicable determinations", "135 unevidenced claims" — each is true when written and nothing re-checks it. Before sending, re-run `ato status` and confirm every figure the prose asserts. Where a sentence survives it, name what the number counts rather than the number.
 - Never adjust a rating to make a register read better.
 - Never write a number into the report that is not in `ato status`.
 - **Never state a count without its denominator.** "not-assessed: 47" with no universe anywhere in the document lets a reader take 47 for the whole framework. The skeleton now prints coverage against the applicable profile; if you add a count of your own, add what it is out of.

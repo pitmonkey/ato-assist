@@ -214,3 +214,55 @@ def test_the_report_leads_with_what_has_not_been_rated(assessment: Path) -> None
     summary = export.report(assessment, TODAY).read_text()
     first = next(line for line in summary.splitlines() if line.startswith("- **RSK"))
     assert "RSK-0003" in first
+
+
+def test_the_xlsx_is_byte_identical_across_runs(assessment: Path) -> None:
+    """A timestamp in the zip makes every export a spurious diff in a tracked assessment."""
+    first = export.register_xlsx(assessment, TODAY).read_bytes()
+    second = export.register_xlsx(assessment, TODAY).read_bytes()
+    assert first == second
+
+
+# --- the assessor's prose lives in the assessment, not in outputs/ --------------------
+
+
+def test_a_section_written_by_the_assessor_is_merged_into_the_report(
+    assessment: Path,
+) -> None:
+    """The skill says write the prose; the guardrail says never edit outputs/."""
+    (assessment / "report").mkdir(exist_ok=True)
+    (assessment / "report" / "recommendation.md").write_text(
+        "This assessment cannot recommend for or against authorisation.\n"
+    )
+    text = export.report(assessment, TODAY).read_text()
+    assert "cannot recommend for or against authorisation" in text
+
+
+def test_a_section_not_written_keeps_its_prompt(assessment: Path) -> None:
+    text = export.report(assessment, TODAY).read_text()
+    assert "_Not yet written" in text
+    assert "report/recommendation.md" in text
+
+
+def test_merged_prose_survives_a_re_export(assessment: Path) -> None:
+    """The whole point: regenerating must not destroy what a person wrote."""
+    (assessment / "report").mkdir(exist_ok=True)
+    (assessment / "report" / "method.md").write_text("No evidence was obtained.\n")
+    export.report(assessment, TODAY)
+    text = export.report(assessment, TODAY).read_text()
+    assert text.count("No evidence was obtained.") == 1
+
+
+def test_every_prose_section_the_skill_names_has_a_file(assessment: Path) -> None:
+    for section in export.PROSE_SECTIONS:
+        (assessment / "report").mkdir(exist_ok=True)
+        (assessment / "report" / f"{section}.md").write_text(f"Prose for {section}.\n")
+    text = export.report(assessment, TODAY).read_text()
+    for section in export.PROSE_SECTIONS:
+        assert f"Prose for {section}." in text, section
+
+
+def test_the_scaffold_makes_somewhere_to_write_the_prose(tmp_path: Path) -> None:
+    scaffold.create(tmp_path, SPEC)
+    assert (tmp_path / "report" / "README.md").is_file()
+    assert "outputs/" in (tmp_path / "report" / "README.md").read_text()

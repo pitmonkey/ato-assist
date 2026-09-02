@@ -39,6 +39,11 @@ OTHER_DIRECTORIES = {
     "inbox": "Drop original documents here, then run `/ato-ingest`. Nothing reads from "
              "this directory except ingest.",
     "notes": "Assessor working notes. Never validated, never a source for a claim.",
+    "report": "The sections of the report only the assessor can write — "
+               "`executive-summary.md`, `boundary.md`, `method.md`, `findings.md`, "
+               "`recommendation.md`. Written here, merged into `outputs/` at export. "
+               "Never write report prose into `outputs/`: that directory is regenerated, "
+               "and anything typed there is lost on the next export.",
     "outputs": "Generated and regenerable: the risk register and the report. "
                "Every file here carries the assessment marking in its header.",
     "glossary": "`unresolved.md` — the queue of terms found in documents and not yet "

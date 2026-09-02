@@ -41,6 +41,7 @@ There is no mechanism that will catch that, so the defence is procedural and it 
 | `controls/` | Framework control statuses | a claim or evidence, once assessed |
 | `risks/` | Threat, vulnerability, consequence, rating, treatment | `refs` — at least one |
 | `rfi/` | Questions put to the customer, tracked to closure | an answer in `sources/` when closed |
+| `report/` | The report sections only you can write — merged into `outputs/` at export | — |
 
 References are by ID (`CLM-0042`, `SRC-0007#privileged-access`), never by path, so a rename never breaks one.
 

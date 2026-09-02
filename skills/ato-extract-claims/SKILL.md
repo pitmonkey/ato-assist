@@ -129,6 +129,7 @@ ato commit --kind extract --summary "SRC-0007: 31 claims"
 - Never extract a claim from framework control text, however specific it sounds. "The organisation implements multi-factor authentication" in a requirement box is the catalogue talking.
 - If a source is marked `anchors_unavailable`, it has no sections to cite. Do not extract against it — say so, and offer to prepare the document and re-ingest.
 - Never report an absence a sub-agent found by searching without its method and its false-positive check. An unaudited negative is an assertion with more words, and it will be wrong in the reassuring direction.
+- A quote is **verbatim as the document reads**, not as the chunk stores it. Drop the table pipes and the converter's backslashes; keep every word. `quotation.flatten` in the plugin is the definition, and `ato validate` enforces it — if a quote you believe is right fails `ATO-E310`, say so rather than editing the quote to match the markup.
 - Never renumber claims. `ato next-id claims` allocates the next free number and a spent number stays spent; renumbering to close gaps repoints every citation to it, silently and validly.
 - Never write claims from a truncated extractor result. Partial output looks exactly like complete output once it is in `claims/`.
 - Never add a field to a claim to record which controls it covers. Controls cite claims, not the reverse.

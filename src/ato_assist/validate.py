@@ -15,7 +15,7 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
 
-from . import frontmatter
+from . import frontmatter, quotation
 from .miniyaml import MiniYamlError
 from .schema import MARKINGS, SCHEMAS, AnyOfWhen, Field, ItemSchema, marking_rank
 
@@ -481,9 +481,9 @@ def _sweep_quotes(index: Any) -> list[Finding]:
     difference between two controls contradicting each other and reconciling, in a real
     assessment, and nothing caught it but a person re-reading the source.
 
-    Whitespace is normalised on both sides, because extraction de-wraps and the source
-    may be wrapped differently. Anything beyond that — a changed word, a dropped clause —
-    is reported.
+    Both sides are read as the document reads them — see `quotation.flatten` — so table
+    rendering, markdown escaping and line wrapping do not count as differences. Anything
+    beyond that, a changed word or a dropped clause, is reported.
     """
     findings: list[Finding] = []
     for item in index.of_kind("claims"):
@@ -498,7 +498,7 @@ def _sweep_quotes(index: Any) -> list[Finding]:
             if source is None:
                 continue  # ATO-E112 already reports a reference to nothing
             text = _section_text(index, source, anchor)
-            if text is None or _flatten(quote) in _flatten(text):
+            if text is None or quotation.contains(text, quote):
                 continue
             findings.append(_warn(
                 "ATO-E310", item.path, "source",
@@ -528,11 +528,6 @@ def _read(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return ""
-
-
-def _flatten(text: str) -> str:
-    """Collapse whitespace, so a de-wrapped quote still matches a wrapped source."""
-    return " ".join(text.split())
 
 
 def _sweep_classifications(index: Any) -> list[Finding]:

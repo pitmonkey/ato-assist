@@ -32,7 +32,11 @@ source:
   - SRC-0011
 ```
 
-`ref` is `SRC-NNNN` or `EVD-NNNN` with an optional `#anchor` matching a heading in the target. `locator` is free text for a human — page, line, section, timestamp. `quote` is verbatim.
+`ref` is `SRC-NNNN` or `EVD-NNNN` with an optional `#anchor` matching a heading in the target. `locator` is free text for a human — page, line, section, timestamp.
+
+`quote` is **verbatim as the document reads**, which is not the same as byte-identical to the chunk. A converter leaves things in `sources/` that the document never had — grid-table borders breaking a sentence across cells, backslashes in front of ordinary punctuation — and a quote should not carry them. `ato validate` compares both sides through `quotation.flatten` in the plugin, which drops table rendering, undoes markdown escaping and collapses wrapping. Everything beyond that is a real difference and is reported as `ATO-E310`.
+
+`sources/` stays byte-faithful on purpose: it is the record of what the conversion produced, and rewriting it would make that unknowable. The reconciliation happens when a quote is compared, never in the file.
 
 Links point downward, toward evidence, and are never mirrored back: claim → source, evidence → claim, control → claim and evidence, risk → anything, RFI → what it resolves. Back-links are derived, never typed.
 

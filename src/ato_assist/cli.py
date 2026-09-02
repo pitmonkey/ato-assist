@@ -20,7 +20,7 @@ from .export import ExportError, register_csv, register_xlsx
 from .export import report as build_report
 from .gitops import GitError
 from .gitops import commit as git_commit
-from .ingest import IngestError
+from .ingest import ConverterMissing, IngestError
 from .ingest import run as ingest_run
 from .oscal import PROFILES, CatalogueError, normalise_profile
 from .oscal import load as load_catalogue
@@ -96,6 +96,10 @@ def _parser() -> argparse.ArgumentParser:
 
     take = sub.add_parser("ingest", help="process inbox/ into sources/")
     take.add_argument("root", nargs="?", default=".")
+    take.add_argument("--force", action="store_true",
+                      help="accept a conversion that will lose document structure")
+    take.add_argument("--reingest", metavar="SRC-NNNN",
+                      help="discard a source and read its original again")
 
     cat = sub.add_parser("controls", help="read the framework control catalogue")
     cat.add_argument("control", nargs="?", help="a control ID to show in full")
@@ -250,7 +254,10 @@ def _ingest(args: argparse.Namespace) -> int:
         print(f"{args.root} is not inside an assessment", file=sys.stderr)
         return 2
     try:
-        report = ingest_run(root)
+        report = ingest_run(root, force=args.force, reingest=args.reingest)
+    except ConverterMissing as exc:
+        print(str(exc), file=sys.stderr)
+        return 3
     except IngestError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -259,14 +266,21 @@ def _ingest(args: argparse.Namespace) -> int:
         print("Nothing in inbox/ to ingest.")
         return 0
     for source_id in report.ingested:
+        sections = report.sections.get(source_id, 0)
         change = report.changes.get(source_id)
         detail = (
-            f" (revision: {change['added']} added, {change['changed']} changed, "
-            f"{change['removed']} removed)"
+            f", revision: {change['added']} added, {change['changed']} changed, "
+            f"{change['removed']} removed"
             if change
             else ""
         )
-        print(f"ingested {source_id}{detail}")
+        print(f"ingested {source_id} — {sections} sections{detail}")
+        if source_id in report.unusable:
+            print(f"  !! {report.unusable[source_id]}")
+            print("     re-ingest with a converter installed: "
+                  f"ato ingest --reingest {source_id}")
+        for framework in report.frameworks_seen.get(source_id, []):
+            print(f"  !  names {framework}, which this assessment is not configured for")
     for name in report.skipped:
         print(f"skipped {name} — already ingested, unchanged")
     if report.queued_terms:

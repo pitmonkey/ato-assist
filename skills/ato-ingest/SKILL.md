@@ -22,9 +22,19 @@ Turns what landed in `inbox/` into `sources/`: hashed, split by heading, and cit
 ato ingest .
 ```
 
-It hashes each file, skips anything already ingested unchanged, converts documents to markdown, splits them on headings into `sources/SRC-NNNN-<slug>/`, queues undefined acronyms, and logs any gap where a converter was missing.
+It hashes each file, skips anything already ingested unchanged, converts documents to markdown, splits them into `sources/SRC-NNNN-<slug>/`, queues undefined acronyms, and reports the section count per source.
 
-Read what it reports. It will tell you what was ingested, what was a revision of something already there, what it could not read, and how many terms it queued.
+**If it refuses, it is telling you something worth hearing.** A missing converter that would destroy document structure stops the run before anything is written (exit 3). Install the converter and run again. `--force` accepts the degraded ingest, and is the right answer only when the converter genuinely cannot be installed — say so to the assessor rather than reaching for it quietly.
+
+**Read the `!!` lines.** Ingest checks the *outcome*, not just the converter, because the dangerous failure looks like success: a document converted cleanly but with no headings produces parts nobody can cite by section, and a document whose sections are all heading-and-nothing-else is worse. Either way ingest says so, marks the source `method: ad-hoc`, and sets `anchors_unavailable`. That source cannot support claim extraction as it stands — tell the assessor, and offer to prepare the document properly and re-ingest:
+
+```
+ato ingest . --reingest SRC-0001
+```
+
+That discards the source and reads the original again, cleaning up the glossary terms the failed run queued. Never hand-delete a source directory.
+
+**Read the `!` framework lines.** If a document names a framework the assessment is not configured for — an SSP written against NIST 800-53 being assessed against the ISM — ingest says so. That mismatch will otherwise surface at control mapping as apparent non-compliance when the real problem is that the system was documented to a different catalogue. Put it to the assessor now; it is a scoping decision, not a finding.
 
 ### 2. Set the classification of each new source
 
@@ -32,7 +42,7 @@ Ingest writes `classification: UNOFFICIAL` because it cannot know. Ask the asses
 
 ### 3. Ask what a revision changed, not whether it changed
 
-For a superseding revision, the report gives you the section counts. Open the changed sections and say plainly what moved. Do not re-read the whole document — the earlier version's claims are still valid unless the text under them changed.
+For a superseding revision, the report gives the added, changed and removed section counts. Open the changed sections and say plainly what moved. Do not re-read the whole document — the earlier version's claims are still valid unless the text under them changed.
 
 Where a changed section underpins existing claims, list those claims for the assessor and ask whether each still holds. Do not silently update a claim.
 

@@ -114,6 +114,7 @@ SOURCE = ItemSchema(
         Field("artifact", kind="path-list", required=False),
         Field("anchors", kind="str-list", required=False),
         Field("method", enum=METHOD, required=False),
+        Field("anchors_unavailable", kind="bool", required=False),
         Field("supersedes", kind="id-list", required=False, ref_pattern=r"SRC-\d{4}"),
         *_COMMON,
     ),

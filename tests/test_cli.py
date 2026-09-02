@@ -280,3 +280,87 @@ def test_init_warns_about_the_placeholder_configuration_itself(
     out = capsys.readouterr().out
     assert "risk-matrix.yaml" in out
     assert "placeholder" in out
+
+
+def _docx(path: Path, paragraphs: list[str]) -> None:
+    import zipfile
+
+    body = "".join(f"<w:p><w:r><w:t>{t}</w:t></w:r></w:p>" for t in paragraphs)
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(
+            "word/document.xml",
+            '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org'
+            f'/wordprocessingml/2006/main"><w:body>{body}</w:body></w:document>',
+        )
+
+
+def test_ingest_refuses_a_destructive_conversion_and_says_how_to_proceed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("ato_assist.ingest.shutil.which", lambda name: None)
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    _docx(tmp_path / "inbox" / "ssp.docx", ["Anything."])
+    capsys.readouterr()
+    assert cli.main(["ingest", str(tmp_path)]) == 3
+    err = capsys.readouterr().err
+    assert "pandoc" in err
+    assert "--force" in err
+    assert not list((tmp_path / "sources").glob("SRC-*"))
+
+
+def test_ingest_reports_sections_per_source(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    (tmp_path / "inbox" / "ssp.md").write_text(
+        "# SSP\n\nIntro.\n\n## Access\n\nText.\n\n## Backup\n\nText.\n"
+    )
+    capsys.readouterr()
+    cli.main(["ingest", str(tmp_path)])
+    assert "SRC-0001 — 3 sections" in capsys.readouterr().out
+
+
+def test_ingest_names_a_framework_the_assessment_is_not_configured_for(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    (tmp_path / "inbox" / "ssp.md").write_text(
+        "# SSP\n\nWritten against NIST SP 800-53 Revision 5 for FedRAMP High.\n\n## A\n\nx.\n"
+    )
+    capsys.readouterr()
+    cli.main(["ingest", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "FedRAMP" in out
+    assert "not configured for" in out
+
+
+def test_reingest_replaces_a_source_rather_than_adding_one(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    (tmp_path / "inbox" / "ssp.md").write_text("# SSP\n\nThe SIEM logs.\n\n## A\n\nx.\n")
+    cli.main(["ingest", str(tmp_path)])
+    capsys.readouterr()
+    assert cli.main(["ingest", str(tmp_path), "--reingest", "SRC-0001"]) == 0
+    assert len(list((tmp_path / "sources").glob("SRC-*"))) == 1
+
+
+def test_reingest_does_not_leave_the_glossary_describing_a_discarded_source(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    (tmp_path / "inbox" / "ssp.md").write_text("# SSP\n\nThe SIEM logs.\n\n## A\n\nx.\n")
+    cli.main(["ingest", str(tmp_path)])
+    cli.main(["ingest", str(tmp_path), "--reingest", "SRC-0001"])
+    capsys.readouterr()
+    queue = (tmp_path / "glossary" / "unresolved.md").read_text()
+    assert queue.count("| SIEM |") == 1
+
+
+def test_reingesting_something_that_is_not_a_source_exits_two(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cli.main(["init", str(tmp_path), *INIT_ARGS])
+    capsys.readouterr()
+    assert cli.main(["ingest", str(tmp_path), "--reingest", "SRC-0099"]) == 2
+    assert "SRC-0099" in capsys.readouterr().err

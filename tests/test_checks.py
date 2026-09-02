@@ -216,3 +216,48 @@ def test_the_current_phase_reports_every_criterion(assessment: Path) -> None:
 
 def test_an_unknown_phase_reports_nothing_rather_than_raising(assessment: Path) -> None:
     assert checks.evaluate_phase(repo.RepoIndex(assessment), "invented", today=TODAY) == []
+
+
+def test_a_ceiling_over_an_empty_collection_is_not_yet_applicable(
+    assessment: Path,
+) -> None:
+    """"No claim is still a draft" is trivially true with no claims, and means nothing."""
+    result = run(assessment, "field_count", dir="claims", field="state", equals="draft", max=0)
+    assert result.applicable is False
+
+
+def test_a_ceiling_becomes_applicable_once_the_collection_has_something_in_it(
+    assessment: Path,
+) -> None:
+    claim(assessment, 1)
+    result = run(assessment, "field_count", dir="claims", field="state", equals="draft", max=0)
+    assert result.applicable is True
+    assert result.passed is True
+
+
+def test_a_floor_is_always_applicable(assessment: Path) -> None:
+    """"At least one source ingested" is a real, failable statement about an empty repo."""
+    result = run(assessment, "field_count", dir="sources", field="state", min=1)
+    assert result.applicable is True
+    assert result.passed is False
+
+
+def test_no_orphans_over_nothing_is_not_yet_applicable(assessment: Path) -> None:
+    result = run(
+        assessment, "no_orphans", **{"from": "sources", "referenced_by": "claims", "via": "source"}
+    )
+    assert result.applicable is False
+
+
+def test_required_ref_over_nothing_is_not_yet_applicable(assessment: Path) -> None:
+    result = run(assessment, "required_ref", dir="controls", field="evidence", min=1)
+    assert result.applicable is False
+
+
+def test_age_max_over_nothing_is_not_yet_applicable(assessment: Path) -> None:
+    result = run(assessment, "age_max", dir="rfi", date_field="asked_on", max_days=21)
+    assert result.applicable is False
+
+
+def test_file_exists_is_always_applicable(assessment: Path) -> None:
+    assert run(assessment, "file_exists", path="notes/anything.md").applicable is True

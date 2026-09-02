@@ -75,6 +75,12 @@ The only venv is `.venv` in this repo, development-only, managed by `uv`: pytest
 - `description` = **triggering conditions only**, no workflow summary — otherwise agents act on the description instead of reading the body. Pack it with concrete trigger phrases and the slash command, and disambiguate against sibling skills.
 - Body: purpose line, numbered `## Procedure`, tables for closed vocabularies, closing `## Guardrails`.
 
+**Sub-agent confinement** — `extractor` and `evidence-checker` may write only under `.ato/staging/` and get no shell, enforced by the PreToolUse hook rather than by the agent's `tools:` list. Their output routinely exceeds what a subagent reply can carry (~16 KB, truncated from the end, silently), so they need a write channel; the hook is what keeps that channel from becoming a way into the assessment.
+
+Treat `tools:` and `disallowedTools:` frontmatter as **documentation of intent, never as a control**. Field testing found agents declared `tools: [Read, Grep, Glob]` writing files to disk, and `disallowedTools: Bash` not preventing a shell. Whether that is universal or particular to one harness, a confinement that depends on the declaration being honoured is a confinement that might not be there.
+
+The honest limit of the hook version: it acts on the identity the payload carries. A named confined agent is scoped; a subagent named only by `agent_id` is refused on the contract directories (`ATO-E003`), because "some subagent" does not answer "who wrote this claim"; a payload with no identity at all is treated as the main conversation. That last case is also what a harness populating nothing looks like — where that is true, the schema gate is all that stands, and it checks a file's shape, not its authorship. Do not describe it as containment.
+
 **Hook scripts** — house envelope, non-negotiable: never raise, never block by accident, always exit 0. The only intentional non-pass outcome is a structured JSON `permissionDecision: "deny"`. Wrap `main()` in `try/except Exception: pass` and `sys.exit(0)`.
 
 **Error codes** — every validator finding carries a stable `ATO-Exxx` code. Codes are greppable and quoted in deny messages; never renumber one.

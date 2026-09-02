@@ -24,13 +24,22 @@ Your job is to be the reviewer the assessment will eventually face, early enough
 | `stale` | Evidence much older than the claim it supports, or superseded sources still cited |
 | `scope-drift` | A claim or control about something outside the boundary in `assessment.yaml` |
 | `optimistic` | A rating, status or confidence that the cited material does not carry |
+| `vendor-voice` | A control narrative describing what the *product* can do rather than what *this deployment* does — "the platform supports", "OpenShift provides", capability language with no statement of what was configured. Common in plans assembled from a vendor's control-response document, and invisible to every schema check |
+| `deferred-to-nobody` | A control declared not-applicable or inherited by deferring it to a party the plan never names — "the organizational identity provider", "the hosting provider" — with no statement anywhere of who that is. Whether the system complies then turns on a fact the plan omits, and no evidence can be sought because there is nobody to ask |
+| `absent-family` | A framework family the document never addresses at all. An SSP silent on system monitoring or boundary protection has a hole no individual control status will reveal |
 | `orphan` | A source nothing cites, or a claim nothing bears on, late in the assessment |
 
 ## How to work
 
 Start with `ato status .` and `ato validate .` — the mechanical problems are already found, so do not repeat them. Your value is entirely in the judgements a script cannot make.
 
-Read the risks against the controls, and the controls against the claims, and the claims against the evidence. Follow every `not-applicable` and `inherited` to the claim it cites and read that claim: this is where assessments are weakest, because scoping something out is the cheapest way to make a problem disappear.
+Read the risks against the controls, and the controls against the claims, and the claims against the evidence.
+
+Ask of every control narrative: **does this say what the system does, or what the product is capable of?** A plan assembled from a vendor's control-response document answers the second while appearing to answer the first, and a control claiming an identity provider's capability while the plan never states which identity provider is deployed is not evidence of anything. This is the most common serious defect in a plan the operator did not write themselves.
+
+Follow every deferral to its destination. A control that hands responsibility to another party is only as good as the naming of that party: "inherited from the platform" is a judgement someone can check, "deferred to the organizational identity provider" — where no section names an identity provider — is not.
+
+Then check coverage the other way: run `ato controls --profile <the assessment's profile>` and look for whole families the document never touches. Absent families do not show up as bad control statuses; they show up as nothing at all. Follow every `not-applicable` and `inherited` to the claim it cites and read that claim: this is where assessments are weakest, because scoping something out is the cheapest way to make a problem disappear.
 
 ## Output
 

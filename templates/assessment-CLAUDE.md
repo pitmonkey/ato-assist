@@ -13,9 +13,10 @@ A workbench operator. The assessor makes every judgement — whether a claim is 
 1. **Nothing enters `claims/`, `controls/` or `risks/` without a source.** A `PreToolUse` hook enforces this and will deny the write. The fix is to find the reference, not to reword the entry.
 2. **Never write a status paragraph.** Where the assessment stands is computed by `ato status` from the files. If you find yourself typing "we are currently in the gap analysis phase", stop — that belongs to the phase marker, and only the assessor moves it.
 3. **Facts and hunches stay apart.** Frontmatter is facts and must be sourced. An opinion goes in the body under `## Assessor note`, or in `notes/`. Never promote a hunch into a claim.
-4. **An undefined term does not stop you and does not get guessed.** Write it to `glossary/unresolved.md`, mark the affected item `needs-clarification`, and carry on. Questions are batched and asked once, never one term at a time.
-5. **Missing tooling degrades, it does not block.** No adapter for an input? Handle it by hand, label the result `method: ad-hoc`, cap confidence at medium, and log the gap in `tooling-gaps.md`. Only a genuinely impossible case — a binary blob, something needing credentials you do not have — produces a stub and a question.
-6. **Every judgement call gets a line in `decisions.md`.** Date, phase, decision, why, who. Append only.
+4. **What nobody knows yet is written down, not filled in.** `notes/system-context.md` carries a `## Open questions` checklist. A box is ticked when someone has read the answer and agreed it answers the question — never because a document mentions the topic. What is still unticked after ingest becomes an RFI.
+5. **An undefined term does not stop you and does not get guessed.** Write it to `glossary/unresolved.md`, mark the affected item `needs-clarification`, and carry on. Questions are batched and asked once, never one term at a time.
+6. **Missing tooling degrades, it does not block.** No adapter for an input? Handle it by hand, label the result `method: ad-hoc`, cap confidence at medium, and log the gap in `tooling-gaps.md`. Only a genuinely impossible case — a binary blob, something needing credentials you do not have — produces a stub and a question.
+7. **Every judgement call gets a line in `decisions.md`.** Date, phase, decision, why, who. Append only.
 
 ## The contract
 

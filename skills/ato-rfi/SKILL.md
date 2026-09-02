@@ -27,6 +27,8 @@ Write the question so it can be answered without a conversation. "Please provide
 
 Raise one when the answer is genuinely not in the documents. Not when it is in a document you have not read — check `sources/` first.
 
+**The first round is already written.** `notes/system-context.md` carries a `## Open questions` checklist from the interview, and `ato status` counts what is still unticked. Anything on it that ingest did not answer is an RFI waiting to be raised — start there rather than inventing questions.
+
 ### Closing one
 
 ```

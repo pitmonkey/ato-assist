@@ -22,9 +22,19 @@ Turns what landed in `inbox/` into `sources/`: hashed, split by heading, and cit
 ato ingest .
 ```
 
-It hashes each file, skips anything already ingested unchanged, converts documents to markdown, splits them on headings into `sources/SRC-NNNN-<slug>/`, queues undefined acronyms, and logs any gap where a converter was missing.
+It hashes each file, skips anything already ingested unchanged, converts documents to markdown, splits them into `sources/SRC-NNNN-<slug>/`, queues undefined acronyms, and reports the section count per source.
 
-Read what it reports. It will tell you what was ingested, what was a revision of something already there, what it could not read, and how many terms it queued.
+**If it refuses, it is telling you something worth hearing.** A missing converter that would destroy document structure stops the run before anything is written (exit 3). Install the converter and run again. `--force` accepts the degraded ingest, and is the right answer only when the converter genuinely cannot be installed — say so to the assessor rather than reaching for it quietly.
+
+**Read the `!!` lines.** Ingest checks the *outcome*, not just the converter, because the dangerous failure looks like success: a document converted cleanly but with no headings produces parts nobody can cite by section, and a document whose sections are all heading-and-nothing-else is worse. Either way ingest says so, marks the source `method: ad-hoc`, and sets `anchors_unavailable`. That source cannot support claim extraction as it stands — tell the assessor, and offer to prepare the document properly and re-ingest:
+
+```
+ato ingest . --reingest SRC-0001
+```
+
+That discards the source and reads the original again, cleaning up the glossary terms the failed run queued. Never hand-delete a source directory.
+
+**Read the `!` framework lines.** If a document names a framework the assessment is not configured for — an SSP written against NIST 800-53 being assessed against the ISM — ingest says so. That mismatch will otherwise surface at control mapping as apparent non-compliance when the real problem is that the system was documented to a different catalogue. Put it to the assessor now; it is a scoping decision, not a finding.
 
 ### 2. Set the classification of each new source
 
@@ -32,19 +42,27 @@ Ingest writes `classification: UNOFFICIAL` because it cannot know. Ask the asses
 
 ### 3. Ask what a revision changed, not whether it changed
 
-For a superseding revision, the report gives you the section counts. Open the changed sections and say plainly what moved. Do not re-read the whole document — the earlier version's claims are still valid unless the text under them changed.
+For a superseding revision, the report gives the added, changed and removed section counts. Open the changed sections and say plainly what moved. Do not re-read the whole document — the earlier version's claims are still valid unless the text under them changed.
 
 Where a changed section underpins existing claims, list those claims for the assessor and ask whether each still holds. Do not silently update a claim.
 
-### 4. Ask whether anything closes an open RFI
+### 4. Work the interview's open questions
+
+`notes/system-context.md` carries a `## Open questions` checklist — what the assessor could not answer before the documents arrived. `ato status` counts the unticked ones. This is what ingest was for.
+
+For each unticked question, say whether the documents now answer it, and where. Then let the assessor tick it. **Mentioning a topic is not answering a question** — a document with a heading called "Authorisation boundary" and nothing under it answers nothing.
+
+Anything still unticked once every document is in becomes an RFI. That is the first round of questions to the customer, and it is already written.
+
+### 5. Ask whether anything closes an open RFI
 
 If `rfi/` has anything in `open` or `blocked`, list them with what arrived, and ask which — if any — this satisfies. An RFI is closed by a source landing, so record the closing source in `answer_source`. Never close one on your own judgement.
 
-### 5. Report the gaps, do not solve them
+### 6. Report the gaps, do not solve them
 
 Anything ingest could not read is a source with a stub and a question. Put the questions to the assessor as a batch. Do not attempt to transcribe a diagram or guess at a scanned document's contents.
 
-### 6. Commit
+### 7. Commit
 
 ```
 ato commit --kind ingest --summary "<what arrived>"

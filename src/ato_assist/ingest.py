@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from . import frontmatter, glossary
-from .repo import find_root_from
+from .repo import find_root_from, load_assessment
 from .session import PLUGIN_ROOT
 
 __all__ = ["IngestError", "Report", "run"]
@@ -32,10 +32,29 @@ __all__ = ["IngestError", "Report", "run"]
 _HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*$", re.MULTILINE)
 _WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _TEXT_SUFFIXES = {".md", ".markdown", ".txt", ".rst", ".csv", ".json", ".yaml", ".yml"}
+# Suffix -> the binary that preserves structure, and what is lost without it.
+_CONVERTERS = {
+    ".docx": ("pandoc", "headings, tables and lists are lost"),
+    ".pdf": ("pdftotext", "nothing can be read from the file at all"),
+}
+# Below this, a "successful" conversion has produced one undifferentiated blob.
+_MIN_SECTIONS = 2
+_PART_WORDS = 1200
+# Above this, a document with no headings is a conversion failure rather than a note.
+_SUBSTANTIAL = 20_000
 
 
 class IngestError(RuntimeError):
     """Ingest was asked to run somewhere that is not an assessment."""
+
+
+class ConverterMissing(IngestError):
+    """A queued document needs a converter that is not installed.
+
+    Losing formatting is a note-and-continue. Losing document structure is not: an SSP
+    whose sections are gone cannot support claim extraction, because there is no section
+    for a claim to cite. That is a stop, before anything lands on disk.
+    """
 
 
 @dataclasses.dataclass
@@ -48,6 +67,9 @@ class Report:
     queued_terms: int = 0
     questions: list[str] = dataclasses.field(default_factory=list)
     gaps: list[str] = dataclasses.field(default_factory=list)
+    sections: dict[str, int] = dataclasses.field(default_factory=dict)
+    unusable: dict[str, str] = dataclasses.field(default_factory=dict)
+    frameworks_seen: dict[str, list[str]] = dataclasses.field(default_factory=dict)
 
 
 class _Extraction(NamedTuple):
@@ -57,12 +79,28 @@ class _Extraction(NamedTuple):
     question: str = ""
 
 
-def run(root: Path | str, today: datetime.date | None = None) -> Report:
-    """Ingest every new document in ``inbox/``."""
+def run(
+    root: Path | str,
+    today: datetime.date | None = None,
+    *,
+    force: bool = False,
+    reingest: str | None = None,
+) -> Report:
+    """Ingest every new document in ``inbox/``.
+
+    ``force`` accepts a conversion that will lose structure. ``reingest`` discards a
+    source and reads its original again, which is the supported way to redo a bad
+    conversion — hand-deleting a source directory leaves the glossary queue and the gap
+    log describing a document that no longer exists.
+    """
     root = Path(root)
     if find_root_from(root) != root:
         raise IngestError(f"{root} is not an assessment root (no assessment.yaml)")
     today = today or datetime.date.today()
+
+    if reingest:
+        _discard(root, reingest)
+    _preflight(root, force)
 
     known = _known_sources(root)
     defined = _defined_terms(root)
@@ -82,8 +120,21 @@ def run(root: Path | str, today: datetime.date | None = None) -> Report:
         directory = root / "sources" / f"{source_id}-{_slug(original.stem)}"
         directory.mkdir(parents=True)
 
-        chunks = _write_chunks(directory, extraction.text)
-        _write_index(directory, source_id, original, digest, extraction, previous, today)
+        chunks, structured = _write_chunks(directory, extraction.text)
+        report.sections[source_id] = len(chunks)
+        unusable = _judge_extraction(directory, chunks, structured)
+        if unusable:
+            report.unusable[source_id] = unusable
+            extraction = extraction._replace(method="ad-hoc")
+            _log_gap(root, f"{original.name} — {unusable}", today)
+            report.gaps.append(f"{original.name} — {unusable}")
+        seen = _frameworks_in(extraction.text, _configured_frameworks(root))
+        if seen:
+            report.frameworks_seen[source_id] = seen
+        _write_index(
+            directory, source_id, original, digest, extraction, previous, today,
+            anchors_unavailable=not structured,
+        )
         if previous:
             _mark_superseded(root, known, previous, today)
             report.changes[source_id] = _diff(root, known[previous]["directory"], chunks)
@@ -179,37 +230,115 @@ def _stub(path: Path, why: str, gap: str = "") -> _Extraction:
 
 
 def _as_markdown(paragraphs: list[str]) -> str:
-    """Treat a short paragraph with no terminator as a heading; it usually is one."""
-    lines: list[str] = []
-    for paragraph in paragraphs:
-        if len(paragraph) < 80 and not paragraph.endswith((".", ":", ";", ",")):
-            lines.append(f"## {paragraph}")
-        else:
-            lines.append(paragraph)
-    return "\n\n".join(lines) + "\n"
+    """Paragraphs, as paragraphs.
+
+    An earlier version promoted any short paragraph without terminal punctuation to a
+    heading, on the theory that it usually is one. On a control table every cell
+    qualifies — "Responsible Role", "Not Applicable", a person's name — and each became a
+    section with no body. Worse than the noise: a fabricated heading becomes a real
+    anchor, so a claim could cite a section that never existed in the document. Structure
+    that is not in the source does not get invented here.
+    """
+    return "\n\n".join(paragraphs) + "\n"
 
 
 # --- writing the source -------------------------------------------------------------
 
 
-def _write_chunks(directory: Path, text: str) -> dict[str, str]:
-    """Split on headings, one file per section, keeping the heading so anchors resolve."""
+def _write_chunks(directory: Path, text: str) -> tuple[dict[str, str], bool]:
+    """Split the extraction into files. Returns the chunks and whether they are sections.
+
+    A document with headings splits on them, and a reference can then cite a section by
+    anchor. A document with none — which is what Word produces when the author used bold
+    and bigger instead of styles — is split by size into parts instead. Parts are honest:
+    they carry no anchor anybody could cite, and the source says so.
+    """
     matches = list(_HEADING.finditer(text))
+    if len(matches) < _MIN_SECTIONS:
+        return _write_parts(directory, text), False
+
     sections: list[tuple[str, str]] = []
-    if not matches or matches[0].start() > 0:
-        preamble = text[: matches[0].start()] if matches else text
-        if preamble.strip():
-            sections.append(("Preamble", preamble.strip() + "\n"))
+    if matches[0].start() > 0 and text[: matches[0].start()].strip():
+        sections.append(("Preamble", text[: matches[0].start()].strip() + "\n"))
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
         sections.append((match.group(2), text[match.start() : end].strip() + "\n"))
 
+    # Pad to the width of the count: two-wide numbering puts 100- before 09-, which
+    # loses document order at the filesystem layer for anything over 99 sections.
+    width = max(2, len(str(len(sections))))
     written: dict[str, str] = {}
     for number, (title, body) in enumerate(sections, start=1):
-        name = f"{number:02d}-{_slug(title)}.md"
-        (directory / name).write_text(body, encoding="utf-8")
-        written[name] = hashlib.sha256(body.encode("utf-8")).hexdigest()
-    return written
+        written[f"{number:0{width}d}-{_slug(title)}.md"] = _write_chunk(
+            directory, f"{number:0{width}d}-{_slug(title)}.md", body
+        )
+    return written, True
+
+
+def _write_parts(directory: Path, text: str) -> dict[str, str]:
+    """Split unstructured text into readable parts on a paragraph boundary."""
+    parts: list[str] = []
+    current: list[str] = []
+    words = 0
+    for paragraph in text.split("\n\n"):
+        current.append(paragraph)
+        words += len(paragraph.split())
+        if words >= _PART_WORDS:
+            parts.append("\n\n".join(current).strip() + "\n")
+            current, words = [], 0
+    if current and "\n\n".join(current).strip():
+        parts.append("\n\n".join(current).strip() + "\n")
+
+    width = max(2, len(str(len(parts))))
+    return {
+        f"part-{number:0{width}d}.md": _write_chunk(
+            directory, f"part-{number:0{width}d}.md", body
+        )
+        for number, body in enumerate(parts or [text], start=1)
+    }
+
+
+def _write_chunk(directory: Path, name: str, body: str) -> str:
+    (directory / name).write_text(body, encoding="utf-8")
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def _judge_extraction(directory: Path, chunks: dict[str, str], structured: bool) -> str:
+    """Say plainly when what landed cannot support claim extraction.
+
+    A converter that fails is forgivable; an ingest that calls the result a success is
+    not. Both failure shapes look fine from the outside — one chunk of a megabyte, or
+    thousands of chunks holding only a heading — so the outcome is checked rather than
+    the converter.
+    """
+    if not chunks:
+        return "nothing was extracted"
+    bodies = [_body_length(directory / name) for name in chunks]
+    if structured:
+        empty = sum(1 for length in bodies if length == 0)
+        if empty > len(bodies) // 2:
+            return (
+                f"{empty} of {len(bodies)} sections hold only a heading; the converter "
+                "recovered no document structure worth citing"
+            )
+    elif sum(bodies) > _SUBSTANTIAL:
+        # The dangerous shape: the converter reports success, the text is all there, and
+        # there is still nothing a claim can cite. Word produces this whenever the author
+        # used bold-and-bigger instead of heading styles, which is most of the time.
+        return (
+            f"no headings were found in a document of {sum(bodies):,} characters, so it "
+            f"is split into {len(chunks)} parts by size and nothing in it can be cited by "
+            "section"
+        )
+    return ""
+
+
+def _body_length(path: Path) -> int:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return 0
+    return sum(len(line.strip()) for line in lines if line.strip() and not line.startswith("#"))
 
 
 def _write_index(
@@ -220,6 +349,7 @@ def _write_index(
     extraction: _Extraction,
     previous: str | None,
     today: datetime.date,
+    anchors_unavailable: bool = False,
 ) -> None:
     data: dict[str, Any] = {
         "id": source_id,
@@ -234,6 +364,8 @@ def _write_index(
         "state": "ingested",
         "updated": today,
     }
+    if anchors_unavailable:
+        data["anchors_unavailable"] = True
     if previous:
         data["supersedes"] = [previous]
     body = (
@@ -244,6 +376,12 @@ def _write_index(
         "`classification` is UNOFFICIAL until someone sets it. Correct it before citing "
         "this source.\n"
     )
+    if anchors_unavailable:
+        body += (
+            "\n**No sections.** The converter found no headings in this document, so it "
+            "is split into parts by size. A reference to this source cannot carry an "
+            "anchor, and `locator` is the only way to say where something came from.\n"
+        )
     if extraction.question:
         # An unreadable file still gets a source, so the hole in the record is visible
         # from the index rather than only from a chunk nobody opens.
@@ -350,3 +488,89 @@ def _slug(text: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     return slug or "section"
 
+
+
+# --- preflight, discarding, and the framework scan -----------------------------------
+
+
+def _preflight(root: Path, force: bool) -> None:
+    """Refuse before writing anything, when a queued document needs a missing converter."""
+    if force:
+        return
+    blocked: list[str] = []
+    for path in sorted((root / "inbox").iterdir()):
+        if not path.is_file() or path.name == "README.md":
+            continue
+        converter = _CONVERTERS.get(path.suffix.lower())
+        if converter and not shutil.which(converter[0]):
+            blocked.append(f"{path.name} needs {converter[0]}, which is not installed — "
+                           f"without it, {converter[1]}")
+    if blocked:
+        raise ConverterMissing(
+            "\n".join(blocked)
+            + "\n\nA document whose structure is gone cannot support claim extraction: "
+            "there is no section for a claim to cite. Install the converter and run "
+            "again, or re-run with --force to accept a degraded ingest."
+        )
+
+
+def _discard(root: Path, source_id: str) -> None:
+    """Remove a source so its original can be read again.
+
+    Also drops the glossary terms it first queued, because a term whose only sighting was
+    in a discarded source is describing a document that no longer exists. Terms first seen
+    elsewhere keep their counts, which will be slightly high until they are next resolved
+    — an acceptable inaccuracy in a backlog, and better than dropping another source's
+    work. Gap entries are dated log lines and are left alone.
+    """
+    directories = list((root / "sources").glob(f"{source_id}-*"))
+    if not directories:
+        raise IngestError(f"{source_id} is not a source in {root / 'sources'}")
+    for directory in directories:
+        shutil.rmtree(directory)
+
+    queue = root / "glossary" / "unresolved.md"
+    if not queue.is_file():
+        return
+    kept = [
+        line
+        for line in queue.read_text(encoding="utf-8").splitlines()
+        if not (line.startswith("|") and f"| {source_id} |" in line)
+    ]
+    queue.write_text("\n".join(kept) + "\n", encoding="utf-8")
+
+
+def _configured_frameworks(root: Path) -> set[str]:
+    assessment = load_assessment(root) or {}
+    return {
+        str(entry.get("id", "")).lower()
+        for entry in assessment.get("frameworks") or []
+        if isinstance(entry, dict)
+    }
+
+
+def _frameworks_in(text: str, configured: set[str]) -> list[str]:
+    """Frameworks this document names, other than the one the assessment is configured for.
+
+    An SSP written against 800-53 and assessed against the ISM will read as widespread
+    non-compliance at control mapping, when in fact it was documented to a different
+    catalogue. That is worth knowing at ingest, when it is still cheap.
+    """
+    lowered = text.lower()
+    seen = [
+        name
+        for name, (pattern, key) in _FRAMEWORK_NAMES.items()
+        if key not in configured and re.search(pattern, lowered)
+    ]
+    return sorted(seen)
+
+
+# Name -> (pattern, the assessment.yaml framework id it corresponds to, if any).
+_FRAMEWORK_NAMES = {
+    "NIST SP 800-53": (r"800[\s-]?53", "nist-800-53"),
+    "FedRAMP": (r"\bfedramp\b", "fedramp"),
+    "ISO 27001": (r"\biso[\s/]?27001\b", "iso-27001"),
+    "SOC 2": (r"\bsoc\s?2\b", "soc2"),
+    "Essential Eight": (r"\bessential eight\b", "e8"),
+    "ISM": (r"\bism\b|information security manual", "ism"),
+}

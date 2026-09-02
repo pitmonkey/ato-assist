@@ -18,6 +18,15 @@ __all__ = ["CheckResult", "evaluate", "evaluate_phase"]
 
 
 class CheckResult(NamedTuple):
+    """The outcome of one criterion.
+
+    ``applicable`` is false when the criterion constrains a collection that is still
+    empty. "No claim is still a draft" is trivially true before any claim exists, and
+    counting that as met makes a phase read two-thirds complete before any work has been
+    done — then go backwards as real drafts appear. A criterion that cannot yet say
+    anything is reported as such and left out of the fraction.
+    """
+
     criterion_id: str
     check: str
     passed: bool
@@ -25,6 +34,7 @@ class CheckResult(NamedTuple):
     expected: str
     offenders: list[str]
     describe: str = ""
+    applicable: bool = True
 
 
 _Check = Callable[..., CheckResult]
@@ -105,7 +115,12 @@ def _field_count(
         passed = passed and len(matched) >= int(min)
         expected = f"at least {min}"
     offenders = [item.path for item in matched] if max is not None else []
-    return CheckResult(criterion_id, "field_count", passed, str(len(matched)), expected, offenders)
+    # A ceiling says nothing about an empty collection; a floor is a real claim about one.
+    applicable = min is not None or bool(index.of_kind(dir))
+    return CheckResult(
+        criterion_id, "field_count", passed, str(len(matched)), expected, offenders,
+        applicable=applicable,
+    )
 
 
 @check("no_orphans")
@@ -125,9 +140,8 @@ def _no_orphans(
         for item in index.of_kind(referenced_by)
         for target in RepoIndex.refs_of(item, via)
     }
-    offenders = [
-        item.path for item in _matching(index.of_kind(origin), where) if item.id not in referenced
-    ]
+    subject = _matching(index.of_kind(origin), where)
+    offenders = [item.path for item in subject if item.id not in referenced]
     return CheckResult(
         criterion_id,
         "no_orphans",
@@ -135,6 +149,7 @@ def _no_orphans(
         f"{len(offenders)} uncited",
         "0 uncited",
         offenders,
+        applicable=bool(subject),
     )
 
 
@@ -150,10 +165,9 @@ def _required_ref(
     **_: Any,
 ) -> CheckResult:
     """Every item that the filter selects cites at least `min` things in a field."""
+    subject = _matching(index.of_kind(dir), where)
     offenders = [
-        item.path
-        for item in _matching(index.of_kind(dir), where)
-        if len(RepoIndex.refs_of(item, field)) < int(min)
+        item.path for item in subject if len(RepoIndex.refs_of(item, field)) < int(min)
     ]
     return CheckResult(
         criterion_id,
@@ -162,6 +176,7 @@ def _required_ref(
         f"{len(offenders)} citing fewer than {min}",
         f"every item citing at least {min}",
         offenders,
+        applicable=bool(subject),
     )
 
 
@@ -180,7 +195,8 @@ def _age_max(
     """Nothing the filter selects is older than `max_days`."""
     offenders: list[str] = []
     oldest = 0
-    for item in _matching(index.of_kind(dir), where):
+    subject = _matching(index.of_kind(dir), where)
+    for item in subject:
         when = item.data.get(date_field)
         if not isinstance(when, datetime.date):
             continue
@@ -195,6 +211,7 @@ def _age_max(
         f"oldest {oldest}d",
         f"at most {max_days}d",
         offenders,
+        applicable=bool(subject),
     )
 
 

@@ -167,7 +167,9 @@ def _seed_working_files(root: Path, spec: Spec) -> None:
 
 def _gitignore(spec: Spec) -> str:
     lines = [
-        "# Session bookkeeping: local to this machine, never shared.",
+        "# Session bookkeeping and sub-agent staging: local to this machine, never",
+        "# shared. Staged extractions are a handoff between an agent and its caller, not",
+        "# part of the assessment record — what matters ends up in claims/.",
         ".ato/",
         "",
         "__pycache__/",

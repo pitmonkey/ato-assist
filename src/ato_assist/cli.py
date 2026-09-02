@@ -12,6 +12,8 @@ import re
 import sys
 from pathlib import Path
 
+from .gitops import GitError
+from .gitops import commit as git_commit
 from .ingest import IngestError
 from .ingest import run as ingest_run
 from .oscal import CatalogueError
@@ -21,6 +23,15 @@ from .scaffold import ScaffoldError, Spec, create
 from .schema import SCHEMAS
 from .status import render as status_render
 from .status import summary as status_summary
+from .tracking import (
+    TrackingError,
+    close_rfi,
+    export_rfis,
+    next_phase,
+    open_rfi,
+    open_rfis,
+    set_phase,
+)
 from .validate import Finding, schema_for_path, validate_document
 
 __all__ = ["main"]
@@ -39,6 +50,9 @@ def main(argv: list[str] | None = None) -> int:
         "ingest": _ingest,
         "status": _status,
         "controls": _controls,
+        "phase": _phase,
+        "rfi": _rfi,
+        "commit": _commit,
     }[args.command]
     return handler(args)
 
@@ -77,6 +91,26 @@ def _parser() -> argparse.ArgumentParser:
     cat.add_argument("--search", help="find controls mentioning this text")
     cat.add_argument("--profile", help="controls applying at a classification")
     cat.add_argument("--limit", type=int, default=20)
+
+    move = sub.add_parser("phase", help="move the phase marker (an assessor assertion)")
+    move.add_argument("to", help="'next', or the id of a phase in process.yaml")
+    move.add_argument("--root", default=".")
+
+    ask = sub.add_parser("rfi", help="register, close, list or export requests for information")
+    ask.add_argument("action", choices=("new", "close", "list", "export"))
+    ask.add_argument("identifier", nargs="?", help="the RFI to close")
+    ask.add_argument("--question")
+    ask.add_argument("--asked-of")
+    ask.add_argument("--reason", action="append", default=[],
+                     help="a claim, control or risk this unblocks")
+    ask.add_argument("--source", help="the source that answered it")
+    ask.add_argument("--root", default=".")
+
+    save = sub.add_parser("commit", help="commit the assessment with a structured message")
+    save.add_argument("--kind", required=True)
+    save.add_argument("--summary", required=True)
+    save.add_argument("--detail", default="")
+    save.add_argument("--root", default=".")
 
     nid = sub.add_parser("next-id", help="the next unused ID in a contract directory")
     nid.add_argument("directory", choices=sorted(SCHEMAS))
@@ -232,6 +266,75 @@ def _controls(args: argparse.Namespace) -> int:
 
     print(f"ISM {catalogue.version}, {len(catalogue.controls)} controls, from "
           f"{catalogue.source} (retrieved {catalogue.retrieved})")
+    return 0
+
+
+def _phase(args: argparse.Namespace) -> int:
+    root = find_root_from(args.root)
+    if root is None:
+        print(f"{args.root} is not inside an assessment", file=sys.stderr)
+        return 2
+    try:
+        moved_from, moved_to = (
+            next_phase(root) if args.to == "next" else set_phase(root, args.to)
+        )
+    except TrackingError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"phase: {moved_from} -> {moved_to}")
+    return 0
+
+
+def _rfi(args: argparse.Namespace) -> int:
+    root = find_root_from(args.root)
+    if root is None:
+        print(f"{args.root} is not inside an assessment", file=sys.stderr)
+        return 2
+
+    if args.action == "new":
+        if not args.question or not args.asked_of:
+            print("--question and --asked-of are both required", file=sys.stderr)
+            return 2
+        identifier = open_rfi(root, args.question, args.asked_of, resolves=args.reason)
+        print(f"{identifier} opened, asked of {args.asked_of}")
+        return 0
+
+    if args.action == "close":
+        if not args.identifier or not args.source:
+            print("closing an RFI needs its id and --source: the answer must be on file "
+                  "in sources/, not only in a conversation", file=sys.stderr)
+            return 2
+        try:
+            path = close_rfi(root, args.identifier, args.source)
+        except TrackingError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print(f"{args.identifier} closed by {args.source} ({path.name})")
+        return 0
+
+    if args.action == "export":
+        print(export_rfis(root), end="")
+        return 0
+
+    entries = open_rfis(root)
+    for data in entries:
+        print(f"{data['id']}  {data.get('asked_of', '')}  {data.get('question', '')}")
+    if not entries:
+        print("No requests for information are open.")
+    return 0
+
+
+def _commit(args: argparse.Namespace) -> int:
+    root = find_root_from(args.root)
+    if root is None:
+        print(f"{args.root} is not inside an assessment", file=sys.stderr)
+        return 2
+    try:
+        made = git_commit(root, args.kind, args.summary, args.detail)
+    except GitError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"{args.kind}: {args.summary}" if made else "nothing to commit")
     return 0
 
 

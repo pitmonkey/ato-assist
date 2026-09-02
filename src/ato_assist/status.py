@@ -14,7 +14,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from . import checks, oscal
+from . import checks, oscal, risk
 from .repo import RepoIndex, load_yaml
 
 __all__ = ["render", "summary"]
@@ -126,7 +126,11 @@ def _coverage_block(index: RepoIndex, today: datetime.date) -> list[str]:
         lines.append(f"  sources    {sum(sources.values()):<4} " + _tally(sources) + note)
     risks = _states(index, "risks")
     if risks:
-        lines.append(f"  risks      {sum(risks.values()):<4} " + _tally(risks))
+        severities, unrated = _severities(index)
+        note = ("   " + _tally(severities)) if severities else ""
+        lines.append(f"  risks      {sum(risks.values()):<4} " + _tally(risks) + note)
+        for identifier, problem in unrated:
+            lines.append(f"             !! {identifier}: {problem}")
         for path in _accepted_without_rationale(index):
             lines.append(f"             !! {path} accepted with no disposition")
     return [*lines, ""] if len(lines) > 1 else []
@@ -239,6 +243,17 @@ def _missing_artifacts(index: RepoIndex) -> int:
             if not (index.root / str(artifact)).exists():
                 missing += 1
     return missing
+
+
+def _severities(index: RepoIndex) -> tuple[dict[str, int], list[tuple[str, str]]]:
+    """Risk counts by severity, derived from the matrix, plus anything it could not rate."""
+    try:
+        rated = risk.rate_all(index.root)
+    except risk.MatrixError:
+        return {}, []
+    counts = Counter(entry.severity for entry in rated if entry.severity)
+    unrated = [(entry.id, entry.problem) for entry in rated if entry.severity is None]
+    return {str(k): v for k, v in counts.items()}, unrated
 
 
 def _accepted_without_rationale(index: RepoIndex) -> list[str]:

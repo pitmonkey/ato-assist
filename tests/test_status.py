@@ -211,3 +211,37 @@ def test_control_coverage_counts_against_the_framework_profile_not_the_files(
     assert "1/" in line
     assert "/1 " not in line
     assert "%" in line
+
+
+def _risk(root: Path, number: int, likelihood: str, impact: str, **overrides: object) -> None:
+    fields: dict[str, object] = {
+        "id": f"RSK-{number:04d}",
+        "title": "A risk",
+        "statement": "Something.",
+        "threat": "T",
+        "vulnerability": "V",
+        "consequence": "C",
+        "likelihood": likelihood,
+        "impact": impact,
+        "refs": ["CLM-0001"],
+        "state": "open",
+        "owner": "someone",
+        "updated": TODAY,
+    }
+    fields.update(overrides)
+    add(root, f"risks/RSK-{number:04d}-r.md", **fields)
+
+
+def test_risks_are_counted_by_derived_severity_not_by_a_stored_rating(
+    assessment: Path,
+) -> None:
+    _risk(assessment, 1, "almost-certain", "severe")
+    _risk(assessment, 2, "rare", "minor")
+    line = next(line for line in status.render(assessment, TODAY).splitlines() if "risks" in line)
+    assert "extreme 1" in line
+    assert "low 1" in line
+
+
+def test_a_risk_rated_off_the_matrix_scales_is_flagged(assessment: Path) -> None:
+    _risk(assessment, 1, "quite likely", "severe")
+    assert "not on the matrix scales" in status.render(assessment, TODAY)

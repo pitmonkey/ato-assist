@@ -42,6 +42,7 @@ _ANCHOR = r"(?:#[a-z0-9][a-z0-9-]*)?"
 _HEADINGS = re.compile(r"^#{1,6}\s+(.+?)\s*#*$", re.MULTILINE)
 # Mirrors repo.FRAMEWORKS_DIR, which this module must not import: repo imports it.
 _FRAMEWORKS_DIR = "frameworks"
+ASSESSMENT_FILE = "assessment.yaml"
 
 
 class Finding(NamedTuple):
@@ -476,7 +477,16 @@ def validate_repo(root: Path | str, today: Any = None) -> list[Finding]:
         except (OSError, UnicodeDecodeError) as exc:
             findings.append(_error("ATO-E100", relative, None, f"unreadable: {exc}"))
             continue
-        findings += validate_document(relative, text, index)
+        # The per-document ATO-E004 exists for the hook, which sees one file at a time.
+        # Here `_sweep_vocabularies` states it once against assessment.yaml, so repeating
+        # it on every control would bury the one line that names the fix.
+        findings += [
+            finding
+            for finding in validate_document(
+                relative, text, index, vocabularies=index.vocabularies
+            )
+            if finding.code != "ATO-E004"
+        ]
 
     findings += _sweep_orphans(index)
     findings += _sweep_artifacts(index)
@@ -485,6 +495,7 @@ def validate_repo(root: Path | str, today: Any = None) -> list[Finding]:
     with contextlib.suppress(MatrixError):
         findings += _sweep_ratings(index, load_matrix(root))
     findings += _sweep_frameworks(index)
+    findings += _sweep_vocabularies(index)
     findings += _sweep_profiles(index)
     findings += _sweep_derivations(index)
     findings += _sweep_classifications(index)
@@ -553,6 +564,27 @@ def _sweep_frameworks(index: Any) -> list[Finding]:
         for item in index.of_kind("controls")
         if str(item.data.get("framework")) not in configured
     ]
+
+
+def _sweep_vocabularies(index: Any) -> list[Finding]:
+    """A configured framework with no usable status vocabulary.
+
+    Reported once against assessment.yaml, not once per control: the fault is in the
+    assessment's configuration, and repeating it on every control would bury it.
+    """
+    findings: list[Finding] = []
+    for entry in index.assessment.get("frameworks") or []:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("id"))
+        if index.vocabularies.get(name) is None:
+            findings.append(_error(
+                "ATO-E004", ASSESSMENT_FILE, "frameworks",
+                f"no usable status vocabulary for {name!r}, so no control in that "
+                f"framework can have its status checked",
+                hint=index.vocabularies.problem(name),
+            ))
+    return findings
 
 
 def _sweep_parties(index: Any) -> list[Finding]:

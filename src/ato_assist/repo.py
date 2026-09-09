@@ -203,6 +203,7 @@ class RepoIndex:
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
         self.assessment = load_assessment(self.root) or {}
+        self.vocabularies = load_vocabularies(self.root / FRAMEWORKS_DIR)
         self.items: dict[str, Item] = {}
         self._by_kind: dict[str, list[Item]] = {kind: [] for kind in SCHEMAS}
         for path in sorted(self.root.rglob("*.md")):

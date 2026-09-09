@@ -551,3 +551,16 @@ def test_a_conformant_control_in_the_new_vocabulary_sweeps_clean(assessment: Pat
     _claim(assessment, 1, "SRC-0001")
     _control(assessment, "alternate-control")
     assert codes(validate.validate_repo(assessment, TODAY)) == []
+
+
+def test_a_phase_gate_naming_a_status_no_framework_declares_is_reported(
+    assessment: Path,
+) -> None:
+    """A gate matching nothing forever passes forever, and says nothing about why."""
+    _claim(assessment, 1, "SRC-0001")
+    process = assessment / "process.yaml"
+    process.write_text(process.read_text().replace("status: ineffective", "status: banana"))
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E004"]
+    assert [f.level for f in findings] == ["warn"]
+    assert "banana" in findings[0].message
+    assert findings[0].path == "process.yaml"

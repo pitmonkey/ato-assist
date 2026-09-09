@@ -584,6 +584,39 @@ def _sweep_vocabularies(index: Any) -> list[Finding]:
                 f"framework can have its status checked",
                 hint=index.vocabularies.problem(name),
             ))
+    return findings + _sweep_gated_statuses(index)
+
+
+def _sweep_gated_statuses(index: Any) -> list[Finding]:
+    """A phase gate matching on a status no configured framework declares.
+
+    `checks._matching` compares strings and knows nothing of frameworks, which is what
+    keeps it auditable. The cost is that a gate naming a word nobody uses matches nothing,
+    passes forever, and never says why — so the two files are held to each other here.
+    """
+    declared = {
+        value
+        for vocabulary in index.vocabularies.by_framework.values()
+        for value in vocabulary.values
+    }
+    if not declared:
+        return []  # already reported, once, above
+    findings: list[Finding] = []
+    for phase in index.process().get("phases") or []:
+        if not isinstance(phase, dict):
+            continue
+        for criterion in phase.get("exit_criteria") or []:
+            if not isinstance(criterion, dict):
+                continue
+            where = (criterion.get("args") or {}).get("where")
+            status = where.get("status") if isinstance(where, dict) else None
+            if isinstance(status, str) and status not in declared:
+                findings.append(_warn(
+                    "ATO-E004", "process.yaml", "exit_criteria",
+                    f"{criterion.get('id')!r} gates on status {status!r}, which no "
+                    f"configured framework declares, so it matches nothing",
+                    hint=f"the statuses in use are: {', '.join(sorted(declared))}",
+                ))
     return findings
 
 

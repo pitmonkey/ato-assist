@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import datetime
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -266,3 +267,19 @@ def test_the_scaffold_makes_somewhere_to_write_the_prose(tmp_path: Path) -> None
     scaffold.create(tmp_path, SPEC)
     assert (tmp_path / "report" / "README.md").is_file()
     assert "outputs/" in (tmp_path / "report" / "README.md").read_text()
+
+
+def test_the_report_counts_assessed_by_the_frameworks_sentinel_not_a_word_of_its_own(
+    assessment: Path,
+) -> None:
+    """`export` is told what is assessed; it never learns a framework's vocabulary.
+
+    A control whose vocabulary cannot be read is not assessed. Counting by the old
+    hardcoded literal would call this one assessed, which reports coverage the
+    assessment has not earned — the error worth being wrong in the other direction for.
+    """
+    _control(assessment, "ISM-0421", "effective")
+    shutil.rmtree(assessment / "frameworks")
+    text = export.report(assessment, TODAY).read_text()
+    assert "1 of " in text
+    assert "0 assessed" in text

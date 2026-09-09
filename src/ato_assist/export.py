@@ -203,7 +203,10 @@ def _control_summary(counts: dict[str, Any]) -> str:
     if not controls:
         return "_No controls have been assessed._"
     total = int(counts.get("controls_in_profile") or 0) or sum(controls.values())
-    assessed = sum(count for status, count in controls.items() if status != "not-assessed")
+    # Told, never derived: which status means "nobody has looked" is the framework's to
+    # say, and `ato status` is where that vocabulary is read. `or 0` understates on an
+    # unexpected shape, which is the safe direction for a coverage number.
+    assessed = int(counts.get("controls_assessed") or 0)
     lines = [
         f"**{len(controls) and sum(controls.values())} of {total} controls in the "
         f"applicable profile have been written up; {assessed} assessed.**",

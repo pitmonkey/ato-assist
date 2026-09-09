@@ -17,11 +17,21 @@ from typing import Any, NamedTuple
 
 from . import frontmatter, quotation
 from .miniyaml import MiniYamlError
-from .schema import MARKINGS, SCHEMAS, AnyOfWhen, Field, ItemSchema, marking_rank
+from .schema import (
+    MARKINGS,
+    SCHEMAS,
+    AnyOfWhen,
+    Field,
+    ItemSchema,
+    Retirement,
+    control_schema,
+    marking_rank,
+)
 
 __all__ = [
     "Finding",
     "classification_gate",
+    "framework_of",
     "schema_for_path",
     "validate_document",
     "validate_repo",
@@ -30,6 +40,8 @@ __all__ = [
 _SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 _ANCHOR = r"(?:#[a-z0-9][a-z0-9-]*)?"
 _HEADINGS = re.compile(r"^#{1,6}\s+(.+?)\s*#*$", re.MULTILINE)
+# Mirrors repo.FRAMEWORKS_DIR, which this module must not import: repo imports it.
+_FRAMEWORKS_DIR = "frameworks"
 
 
 class Finding(NamedTuple):
@@ -67,8 +79,30 @@ def schema_for_path(path: str) -> tuple[ItemSchema, str] | None:
     return (schema, parts[1]) if len(parts) == 2 else None
 
 
-def validate_document(path: str, text: str, repo: Any | None = None) -> list[Finding]:
-    """Validate one document's text. ``repo`` enables the referential checks."""
+def framework_of(path: str) -> str | None:
+    """The framework directory a control sits in, which is the key to its vocabulary.
+
+    The directory, never the file's own ``framework`` field: reading the frontmatter
+    would let a file choose which vocabulary judges it, and ATO-E121 exists precisely
+    because the two can disagree.
+    """
+    parts = PurePosixPath(path).parts
+    return parts[1] if len(parts) == 3 and parts[0] == "controls" else None
+
+
+def validate_document(
+    path: str,
+    text: str,
+    repo: Any | None = None,
+    *,
+    vocabularies: Any | None = None,
+) -> list[Finding]:
+    """Validate one document's text.
+
+    ``repo`` enables the referential checks; ``vocabularies`` enables the framework's
+    status vocabulary. Each ``None`` selects a layer that needs less, the way the hook
+    runs without a repo index. Every production caller supplies both.
+    """
     resolved = schema_for_path(path)
     if resolved is None:
         return []
@@ -84,8 +118,28 @@ def validate_document(path: str, text: str, repo: Any | None = None) -> list[Fin
                        hint="see the supported YAML subset in skills/ato-schemas")]
 
     findings: list[Finding] = []
+    framework = framework_of(path)
+    retired: dict[str, Retirement] = {}
+    hint = ""
+    if framework is not None and vocabularies is not None:
+        vocabulary = vocabularies.get(framework)
+        if vocabulary is None:
+            # A fault in the assessment's configuration, not in the file being written.
+            # Denying here would block every control write until someone fixed a file the
+            # writer may not even know about; `ato validate` reports it as an error.
+            findings.append(_warn(
+                "ATO-E004", path, "status",
+                f"no usable status vocabulary for {framework!r}, so the status was not "
+                f"checked against one",
+                hint=vocabularies.problem(framework),
+            ))
+        else:
+            schema = control_schema(vocabulary)
+            retired = {r.old: r for r in vocabulary.retired}
+            hint = f"the {framework} vocabulary is {_FRAMEWORKS_DIR}/{framework}.yaml"
+
     findings += _check_naming(schema, path, id_holder, data)
-    findings += _check_fields(schema, path, data)
+    findings += _check_fields(schema, path, data, retired=retired, hint=hint)
     findings += _check_conditionals(schema, path, data)
     findings += _check_traceability(schema, path, data)
     findings += _check_degradation(schema, path, data)
@@ -191,21 +245,27 @@ def _check_naming(
             f"id {declared!r} disagrees with the name, which says {expected!r}",
         ))
 
-    if schema.directory == "controls":
-        framework = PurePosixPath(path).parts[1]
-        if data.get("framework") != framework:
-            findings.append(_error(
-                "ATO-E121", path, "framework",
-                f"framework {data.get('framework')!r} disagrees with the directory "
-                f"{framework!r}",
-            ))
+    framework = framework_of(path)
+    if framework is not None and data.get("framework") != framework:
+        findings.append(_error(
+            "ATO-E121", path, "framework",
+            f"framework {data.get('framework')!r} disagrees with the directory "
+            f"{framework!r}",
+        ))
     return findings
 
 
 # --- fields -----------------------------------------------------------------------
 
 
-def _check_fields(schema: ItemSchema, path: str, data: dict[str, Any]) -> list[Finding]:
+def _check_fields(
+    schema: ItemSchema,
+    path: str,
+    data: dict[str, Any],
+    *,
+    retired: dict[str, Retirement] | None = None,
+    hint: str = "",
+) -> list[Finding]:
     findings: list[Finding] = []
     known = {field.name for field in schema.fields}
     for name in data:
@@ -225,15 +285,35 @@ def _check_fields(schema: ItemSchema, path: str, data: dict[str, Any]) -> list[F
                     "ATO-E102", path, field.name, f"field {field.name!r} is required"
                 ))
             continue
-        findings += _check_value(field, path, value)
+        findings += _check_value(
+            field, path, value, retired=retired if field.name == "status" else None, hint=hint
+        )
     return findings
 
 
-def _check_value(field: Field, path: str, value: Any) -> list[Finding]:
+def _check_value(
+    field: Field,
+    path: str,
+    value: Any,
+    *,
+    retired: dict[str, Retirement] | None = None,
+    hint: str = "",
+) -> list[Finding]:
     if field.enum and value not in field.enum:
+        retirement = (retired or {}).get(str(value))
+        if retirement is not None:
+            # Naming the replacement is the difference between a migration an assessor
+            # can act on and an enum failure that only says no.
+            return [_error(
+                "ATO-E105", path, field.name,
+                f"{value!r} is from a retired vocabulary; the current value is "
+                f"{retirement.new!r}",
+                hint=retirement.note or hint,
+            )]
         return [_error(
             "ATO-E103", path, field.name,
             f"{value!r} is not one of: {', '.join(field.enum)}",
+            hint=hint,
         )]
     if field.kind.endswith("-list"):
         if not isinstance(value, list):

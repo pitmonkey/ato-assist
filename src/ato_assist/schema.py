@@ -23,6 +23,7 @@ __all__ = [
     "Retirement",
     "SCHEMAS",
     "Vocabulary",
+    "control_schema",
     "marking_rank",
 ]
 
@@ -206,32 +207,50 @@ CONTROL = ItemSchema(
         Field("id"),
         Field("framework"),
         Field("title"),
-        Field("status", enum=("not-assessed", "satisfied", "partially-satisfied",
-                              "not-satisfied", "not-applicable", "inherited")),
+        # No enum here on purpose: what a status may say belongs to the framework, and
+        # `control_schema` supplies it. The structural half of the contract says only
+        # that there is a status.
+        Field("status"),
         Field("claims", kind="id-list", required=False, ref_pattern=r"CLM-\d{4}"),
         Field("evidence", kind="id-list", required=False, ref_pattern=r"EVD-\d{4}"),
         Field("confidence", enum=CONFIDENCE),
         Field("method", enum=METHOD),
         *_COMMON,
     ),
-    any_of_when=(
-        AnyOfWhen(
-            fields=("claims", "evidence"),
-            when_field="status",
-            when_not_in=("not-assessed",),
-            message="an assessed control must cite at least one claim or evidence entry",
-        ),
-        AnyOfWhen(
-            fields=("claims",),
-            when_field="status",
-            when_in=("not-applicable", "inherited"),
-            message=(
-                "scoping a control out or inheriting it is itself a judgement, so it must "
-                "cite the claim that argues it"
+)
+
+
+def control_schema(vocabulary: Vocabulary) -> ItemSchema:
+    """CONTROL, with its status enum and its two citation rules taken from one framework.
+
+    The value sets are the framework's; the messages stay here, because a deny message is
+    the workbench's own voice and contract wording does not belong in a data file.
+    """
+    fields = tuple(
+        field._replace(enum=vocabulary.values) if field.name == "status" else field
+        for field in CONTROL.fields
+    )
+    return CONTROL._replace(
+        fields=fields,
+        any_of_when=(
+            AnyOfWhen(
+                fields=("claims", "evidence"),
+                when_field="status",
+                when_not_in=vocabulary.uncited,
+                message="an assessed control must cite at least one claim or evidence entry",
+            ),
+            AnyOfWhen(
+                fields=("claims",),
+                when_field="status",
+                when_in=vocabulary.needs_claim,
+                message=(
+                    "this status is a judgement rather than a measurement, so it must cite "
+                    "the claim that argues it"
+                ),
             ),
         ),
-    ),
-)
+    )
+
 
 RISK = ItemSchema(
     kind="risk",

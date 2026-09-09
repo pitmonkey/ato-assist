@@ -186,3 +186,45 @@ def test_one_bad_file_does_not_hide_a_good_one(tmp_path: Path) -> None:
 def test_the_problem_for_a_framework_that_loaded_cleanly_is_empty(tmp_path: Path) -> None:
     write(tmp_path, "demo", VALID)
     assert repo.load_vocabularies(tmp_path).problem("demo") == ""
+
+
+# --- the vocabulary shaping the control schema ----------------------------------------
+
+
+def ism() -> schema.Vocabulary:
+    vocabulary = repo.load_vocabularies(SHIPPED).get("ism")
+    assert vocabulary is not None
+    return vocabulary
+
+
+def test_the_control_schema_takes_its_status_enum_from_the_framework() -> None:
+    fields = {field.name: field for field in schema.control_schema(ism()).fields}
+    assert fields["status"].enum == ism().values
+
+
+def test_the_uncited_statuses_are_the_ones_excused_from_citing_anything() -> None:
+    rule = schema.control_schema(ism()).any_of_when[0]
+    assert rule.fields == ("claims", "evidence")
+    assert rule.when_not_in == ism().uncited
+
+
+def test_the_needs_claim_statuses_must_cite_a_claim_specifically() -> None:
+    rule = schema.control_schema(ism()).any_of_when[1]
+    assert rule.fields == ("claims",)
+    assert rule.when_in == ism().needs_claim
+    assert "claim" in rule.message
+
+
+def test_the_control_schema_is_otherwise_the_one_structural_definition() -> None:
+    """Only the status enum and the two citation rules are the framework's to set."""
+    shaped = schema.control_schema(ism())
+    assert shaped.kind == schema.CONTROL.kind
+    assert shaped.directory == schema.CONTROL.directory
+    assert [f.name for f in shaped.fields] == [f.name for f in schema.CONTROL.fields]
+
+
+def test_the_module_level_control_schema_carries_no_frameworks_words() -> None:
+    """A vocabulary is what makes a status checkable; the bare schema does not have one."""
+    fields = {field.name: field for field in schema.CONTROL.fields}
+    assert fields["status"].enum is None
+    assert schema.CONTROL.any_of_when == ()

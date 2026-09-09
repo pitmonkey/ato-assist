@@ -32,7 +32,7 @@ config/                         org defaults copied into an assessment at init
 templates/                      files ato-init copies into an assessment repo
 data/ism-oscal/<release>/       vendored pinned ISM OSCAL catalog + profiles
 scripts/                        maintenance scripts (not shipped behaviour)
-tests/                          pytest, with committed fixture assessment repos
+tests/                          pytest; every test assessment is built at runtime by `scaffold.create`
 ```
 
 ## Python runtime — no venv, anywhere
@@ -51,7 +51,7 @@ The only venv is `.venv` in this repo, development-only, managed by `uv`: pytest
 |---|---|
 | `miniyaml` `frontmatter` `schema` `refs` `repo` `validate` `hookio` | `checks` `status` `ingest` `oscal` `risk` `export` `gitops` `scaffold` `cli` |
 
-`tests/test_hook_surface.py` enforces this by inspecting `sys.modules` after a hook bootstrap. If you add an import to a hook-safe module, that test tells you.
+`test_hook_modules_never_reach_for_a_third_party_package_or_the_cli` in `tests/test_hook_scripts.py` enforces this by inspecting `sys.modules` after a hook bootstrap. It is a **denylist of seven names**, not an allowlist: `yaml`, `cli`, `status`, `checks`, `ingest`, `export`, `scaffold`. A new module — or `oscal`, or `risk` — passes it silently, so it tells you about an import only if the import is on that list.
 
 ## Where things are
 

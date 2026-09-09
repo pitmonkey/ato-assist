@@ -96,7 +96,7 @@ def handle_pre(payload: dict[str, Any]) -> dict[str, Any]:
             "checked against the contract after it is written.",
         )
 
-    findings = validate_document(rel, text, _index(root))
+    findings = validate_document(rel, text, _index(root), vocabularies=_vocabularies(root, rel))
     errors = [f for f in findings if f.level == "error"]
     if errors:
         return _deny(errors, "PreToolUse")
@@ -116,7 +116,7 @@ def handle_post(payload: dict[str, Any]) -> dict[str, Any]:
         return {}
 
     findings = classification_gate(rel, load_assessment(root)) + validate_document(
-        rel, text, _index(root)
+        rel, text, _index(root), vocabularies=_vocabularies(root, rel)
     )
     return _nudge("PostToolUse", _render(findings)) if findings else {}
 
@@ -201,6 +201,22 @@ def _unidentified_writer(payload: dict[str, Any], agent: str) -> Finding | None:
 
 def _windows(parts: tuple[str, ...], size: int) -> set[tuple[str, ...]]:
     return {parts[i : i + size] for i in range(max(0, len(parts) - size + 1))}
+
+
+def _vocabularies(root: Path, rel: str) -> Any:
+    """The framework vocabularies, loaded independently of the index.
+
+    Independently on purpose: `_index` is allowed to come back None, and a control's
+    status must still be checked when it does. Only control writes pay for the read.
+    """
+    try:
+        from .repo import FRAMEWORKS_DIR, Vocabularies, load_vocabularies
+
+        if not rel.startswith("controls/"):
+            return Vocabularies({}, {})
+        return load_vocabularies(Path(root) / FRAMEWORKS_DIR)
+    except Exception:
+        return None
 
 
 def _index(root: Path) -> Any:

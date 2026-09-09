@@ -206,6 +206,9 @@ def _framework_total(index: RepoIndex) -> int:
     Coverage measured against the files on disk would read 100% the moment the first
     control is written, which is worse than no number at all.
     """
+    # Takes frameworks[0] and knows only the ISM. That is a separate multi-framework
+    # bug, older than the per-framework status vocabulary and deliberately not fixed
+    # alongside it: this denominator is a catalogue question, not a vocabulary one.
     frameworks = index.assessment.get("frameworks") or []
     if not isinstance(frameworks, list) or not frameworks:
         return 0

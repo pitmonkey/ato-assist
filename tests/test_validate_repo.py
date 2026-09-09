@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import shutil
 from pathlib import Path
 
 import pytest
@@ -497,3 +498,69 @@ def test_an_unrated_draft_risk_is_not_reported_as_off_the_scales(assessment: Pat
         updated=TODAY,
     )
     assert "ATO-E303" not in codes(validate.validate_repo(assessment, TODAY))
+
+
+# --- the framework vocabulary, swept ---------------------------------------------------
+
+
+def _control(root: Path, status: str, identifier: str = "ISM-0421") -> Path:
+    return _write(
+        root,
+        f"controls/ism/{identifier}.md",
+        id=identifier,
+        framework="ism",
+        title="Privileged access is restricted",
+        status=status,
+        claims=["CLM-0001"],
+        confidence="medium",
+        method="document-review",
+        updated=TODAY,
+    )
+
+
+def test_the_sweep_checks_a_control_against_its_framework_vocabulary(
+    assessment: Path,
+) -> None:
+    _claim(assessment, 1, "SRC-0001")
+    _control(assessment, "satisfied")
+    findings = validate.validate_repo(assessment, TODAY)
+    assert "ATO-E105" in codes(findings)
+
+
+def test_an_assessment_with_no_framework_vocabulary_is_blocking(assessment: Path) -> None:
+    """A warning at the hook, an error here: `ato validate` is where it must be loud."""
+    _claim(assessment, 1, "SRC-0001")
+    shutil.rmtree(assessment / "frameworks")
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E004"]
+    assert [f.level for f in findings] == ["error"]
+    assert findings[0].path == "assessment.yaml"
+
+
+def test_a_missing_vocabulary_is_reported_once_not_once_per_control(
+    assessment: Path,
+) -> None:
+    _claim(assessment, 1, "SRC-0001")
+    for number in range(3):
+        _control(assessment, "effective", f"ISM-000{number}")
+    shutil.rmtree(assessment / "frameworks")
+    findings = validate.validate_repo(assessment, TODAY)
+    assert len([f for f in findings if f.code == "ATO-E004"]) == 1
+
+
+def test_a_conformant_control_in_the_new_vocabulary_sweeps_clean(assessment: Path) -> None:
+    _claim(assessment, 1, "SRC-0001")
+    _control(assessment, "alternate-control")
+    assert codes(validate.validate_repo(assessment, TODAY)) == []
+
+
+def test_a_phase_gate_naming_a_status_no_framework_declares_is_reported(
+    assessment: Path,
+) -> None:
+    """A gate matching nothing forever passes forever, and says nothing about why."""
+    _claim(assessment, 1, "SRC-0001")
+    process = assessment / "process.yaml"
+    process.write_text(process.read_text().replace("status: ineffective", "status: banana"))
+    findings = [f for f in validate.validate_repo(assessment, TODAY) if f.code == "ATO-E004"]
+    assert [f.level for f in findings] == ["warn"]
+    assert "banana" in findings[0].message
+    assert findings[0].path == "process.yaml"

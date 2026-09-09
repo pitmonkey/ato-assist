@@ -1,8 +1,18 @@
 """L1 validation: everything decidable from a single document's own text."""
 
+from pathlib import Path
+
 import pytest
 
 from ato_assist import validate
+from tests_support import ism_vocabularies
+
+CONTROL_PATH = "controls/ism/ISM-0421.md"
+
+
+def check(text: str, path: str = CONTROL_PATH) -> list[validate.Finding]:
+    """Validate a control against the shipped ISM vocabulary."""
+    return validate.validate_document(path, text, vocabularies=ism_vocabularies())
 
 VALID_CLAIM = """---
 id: CLM-0042
@@ -109,7 +119,7 @@ VALID_CONTROL = """---
 id: ISM-0421
 framework: ism
 title: Privileged access is restricted
-status: satisfied
+status: effective
 claims: [CLM-0042]
 evidence: [EVD-0003]
 confidence: high
@@ -119,37 +129,138 @@ updated: 2026-09-02
 Rationale.
 """
 
+CITATIONS = "claims: [CLM-0042]\nevidence: [EVD-0003]\n"
+
 
 def test_a_conformant_control_produces_no_findings() -> None:
-    assert validate.validate_document("controls/ism/ISM-0421.md", VALID_CONTROL) == []
+    assert check(VALID_CONTROL) == []
 
 
 def test_an_assessed_control_citing_neither_claims_nor_evidence_is_e110() -> None:
-    text = VALID_CONTROL.replace("claims: [CLM-0042]\nevidence: [EVD-0003]\n", "")
-    findings = validate.validate_document("controls/ism/ISM-0421.md", text)
-    assert codes(findings) == ["ATO-E110"]
+    assert codes(check(VALID_CONTROL.replace(CITATIONS, ""))) == ["ATO-E110"]
 
 
 def test_an_unassessed_control_may_cite_nothing() -> None:
-    text = VALID_CONTROL.replace("claims: [CLM-0042]\nevidence: [EVD-0003]\n", "").replace(
-        "status: satisfied", "status: not-assessed"
+    text = VALID_CONTROL.replace(CITATIONS, "").replace(
+        "status: effective", "status: not-assessed"
     )
-    assert validate.validate_document("controls/ism/ISM-0421.md", text) == []
+    assert check(text) == []
 
 
 def test_a_not_applicable_control_citing_only_evidence_is_e110() -> None:
     text = VALID_CONTROL.replace("claims: [CLM-0042]\n", "").replace(
-        "status: satisfied", "status: not-applicable"
+        "status: effective", "status: not-applicable"
     )
-    findings = validate.validate_document("controls/ism/ISM-0421.md", text)
+    findings = check(text)
     assert codes(findings) == ["ATO-E110"]
     assert "claim" in findings[0].message
 
 
 def test_a_control_whose_framework_disagrees_with_its_directory_is_e121() -> None:
-    text = VALID_CONTROL.replace("framework: ism", "framework: e8")
-    findings = validate.validate_document("controls/ism/ISM-0421.md", text)
-    assert codes(findings) == ["ATO-E121"]
+    assert codes(check(VALID_CONTROL.replace("framework: ism", "framework: e8"))) == [
+        "ATO-E121"
+    ]
+
+
+# --- the vocabulary is the framework's, and it has changed ----------------------------
+
+
+def test_an_alternate_control_citing_a_claim_is_conformant() -> None:
+    """The rating the old vocabulary could not express at all, which is why #15 exists."""
+    assert check(VALID_CONTROL.replace("status: effective", "status: alternate-control")) == []
+
+
+def test_an_alternate_control_citing_only_evidence_is_e110() -> None:
+    """Accepting a compensating control is an argument, so something must argue it."""
+    text = VALID_CONTROL.replace("claims: [CLM-0042]\n", "").replace(
+        "status: effective", "status: alternate-control"
+    )
+    findings = check(text)
+    assert codes(findings) == ["ATO-E110"]
+    assert "claim" in findings[0].message
+
+
+def test_a_status_from_the_retired_vocabulary_is_e105_naming_its_replacement() -> None:
+    """The half of the corpus the old vocabulary accepts and the new one rejects."""
+    findings = check(VALID_CONTROL.replace("status: effective", "status: satisfied"))
+    assert codes(findings) == ["ATO-E105"]
+    assert "'effective'" in findings[0].message
+
+
+def test_inherited_migrates_to_effective_and_says_the_claim_is_now_the_record() -> None:
+    findings = check(VALID_CONTROL.replace("status: effective", "status: inherited"))
+    assert codes(findings) == ["ATO-E105"]
+    assert "'effective'" in findings[0].message
+    assert "claim" in findings[0].hint
+
+
+def test_partially_satisfied_migrates_to_ineffective_and_asks_for_a_re_check() -> None:
+    text = VALID_CONTROL.replace("status: effective", "status: partially-satisfied")
+    findings = check(text)
+    assert codes(findings) == ["ATO-E105"]
+    assert "'ineffective'" in findings[0].message
+    assert "re-check" in findings[0].hint
+
+
+def test_a_status_no_vocabulary_has_ever_carried_is_still_e103() -> None:
+    findings = check(VALID_CONTROL.replace("status: effective", "status: banana"))
+    assert codes(findings) == ["ATO-E103"]
+    assert "alternate-control" in findings[0].message
+
+
+def test_the_enum_message_names_the_framework_whose_vocabulary_it_is() -> None:
+    findings = check(VALID_CONTROL.replace("status: effective", "status: banana"))
+    assert "ism" in findings[0].hint
+
+
+E8 = """schema: ato-assist/framework@1
+id: e8
+status:
+  values: [not-assessed, maturity-1, maturity-2]
+  unassessed: not-assessed
+  uncited: [not-assessed]
+"""
+
+
+def test_a_status_valid_in_another_framework_is_e103_in_this_one(tmp_path: Path) -> None:
+    """Each framework's vocabulary judges only its own directory."""
+    from ato_assist import repo
+
+    (tmp_path / "e8.yaml").write_text(E8)
+    vocabularies = repo.load_vocabularies(tmp_path)
+    text = VALID_CONTROL.replace("framework: ism", "framework: e8").replace(
+        "id: ISM-0421", "id: ML1-01"
+    )
+    findings = validate.validate_document(
+        "controls/e8/ML1-01.md", text, vocabularies=vocabularies
+    )
+    assert codes(findings) == ["ATO-E103"]
+    assert "maturity-1" in findings[0].message
+    assert "alternate-control" not in findings[0].message
+
+
+def test_a_control_whose_framework_has_no_vocabulary_warns_rather_than_denying() -> None:
+    """A config fault the write cannot fix must never block the write."""
+    from ato_assist import repo
+
+    findings = validate.validate_document(
+        "controls/nope/X-0001.md",
+        VALID_CONTROL.replace("framework: ism", "framework: nope").replace(
+            "id: ISM-0421", "id: X-0001"
+        ),
+        vocabularies=repo.Vocabularies({}, {}),
+    )
+    assert codes(findings) == ["ATO-E004"]
+    assert findings[0].level == "warn"
+    assert "frameworks/nope.yaml" in findings[0].hint
+
+
+def test_without_a_vocabulary_the_status_is_not_checked_at_all() -> None:
+    """The layer that needs no framework config, mirroring `repo=None`."""
+    assert validate.validate_document(CONTROL_PATH, VALID_CONTROL) == []
+    assert validate.validate_document(
+        CONTROL_PATH, VALID_CONTROL.replace("status: effective", "status: banana")
+    ) == []
 
 
 VALID_RISK = """---

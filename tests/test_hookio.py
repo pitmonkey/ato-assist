@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from ato_assist import hookio
+from ato_assist import hookio, validate
 
 ASSESSMENT = """schema: ato-assist/assessment@1
 classification:
@@ -395,3 +395,101 @@ def test_the_main_conversation_is_not_treated_as_an_unidentified_subagent(
     assert hookio.handle_pre(
         write_payload(assessment / "claims" / "CLM-0042-mfa.md", VALID_CLAIM)
     ) == {}
+
+
+# --- the framework vocabulary on the hook path -----------------------------------------
+
+CONTROL = """---
+id: ISM-0421
+framework: ism
+title: Privileged access is restricted
+status: effective
+claims: [CLM-0042]
+confidence: medium
+method: document-review
+updated: 2026-09-02
+---
+Rationale.
+"""
+
+ISM = """schema: ato-assist/framework@1
+id: ism
+status:
+  values: [not-assessed, ineffective, alternate-control, effective, not-applicable]
+  unassessed: not-assessed
+  uncited: [not-assessed]
+  needs_claim: [not-applicable, alternate-control]
+retired:
+  - {from: satisfied, to: effective}
+"""
+
+
+def with_vocabulary(root: Path) -> Path:
+    (root / "frameworks").mkdir(exist_ok=True)
+    (root / "frameworks" / "ism.yaml").write_text(ISM)
+    (root / "claims" / "CLM-0042-mfa.md").write_text(VALID_CLAIM)
+    (root / "controls" / "ism").mkdir(parents=True, exist_ok=True)
+    return root / "controls" / "ism" / "ISM-0421.md"
+
+
+def test_a_control_in_the_framework_vocabulary_is_accepted(assessment: Path) -> None:
+    path = with_vocabulary(assessment)
+    assert hookio.handle_pre(write_payload(path, CONTROL)) == {}
+
+
+def test_a_control_using_a_retired_status_is_denied_with_its_replacement(
+    assessment: Path,
+) -> None:
+    path = with_vocabulary(assessment)
+    result = hookio.handle_pre(
+        write_payload(path, CONTROL.replace("status: effective", "status: satisfied"))
+    )
+    assert decision(result) == "deny"
+    assert "ATO-E105" in reason(result)
+    assert "'effective'" in reason(result)
+
+
+def test_a_control_write_with_no_framework_config_nudges_and_never_denies(
+    assessment: Path,
+) -> None:
+    """The fault is in the assessment's configuration; the write cannot fix it."""
+    (assessment / "controls" / "ism").mkdir(parents=True)
+    path = assessment / "controls" / "ism" / "ISM-0421.md"
+    result = hookio.handle_pre(
+        write_payload(path, CONTROL.replace("status: effective", "status: banana"))
+    )
+    assert decision(result) is None
+    assert "ATO-E004" in reason(result)
+
+
+def test_the_status_is_checked_even_when_the_index_cannot_be_built(
+    assessment: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The vocabulary reaches the validator on its own, not through the index."""
+    path = with_vocabulary(assessment)
+    monkeypatch.setattr(hookio, "_index", lambda root: None)
+    result = hookio.handle_pre(
+        write_payload(path, CONTROL.replace("status: effective", "status: satisfied"))
+    )
+    assert decision(result) == "deny"
+    assert "ATO-E105" in reason(result)
+
+
+def test_both_hook_handlers_always_supply_a_vocabulary(
+    assessment: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`vocabularies=None` is a layer for direct callers; production never selects it."""
+    path = with_vocabulary(assessment)
+    path.write_text(CONTROL)
+    seen: list[Any] = []
+    real = validate.validate_document
+
+    def record(*args: Any, **kwargs: Any) -> Any:
+        seen.append(kwargs.get("vocabularies"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(hookio, "validate_document", record)
+    hookio.handle_pre(write_payload(path, CONTROL))
+    hookio.handle_post({"tool_name": "Write", "tool_input": {"file_path": str(path)}})
+    assert len(seen) == 2
+    assert all(entry is not None for entry in seen)

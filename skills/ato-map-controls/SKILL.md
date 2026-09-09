@@ -51,13 +51,13 @@ updated: <today>
 What the control requires, and how the cited claims bear on it.
 ```
 
-Statuses: `not-assessed`, `satisfied`, `partially-satisfied`, `not-satisfied`, `not-applicable`, `inherited`.
+Statuses come from the framework's own vocabulary in `frameworks/<framework>.yaml`, not from this skill. For the ISM they are `not-assessed`, `ineffective`, `alternate-control`, `effective` and `not-applicable` — what an IRAP assessment reports is control effectiveness. `ato validate` names the accepted values when a status is outside them, and a status from the old vocabulary is `ATO-E105` with its replacement.
 
-Anything other than `not-assessed` must cite at least one claim or piece of evidence — the contract hook enforces it. `not-applicable` and `inherited` must cite a **claim**, because scoping a control out or inheriting it is a judgement someone made and that judgement needs a source.
+Only the statuses the vocabulary lists as `uncited` may cite nothing — for the ISM, `not-assessed` alone. Everything else must cite at least one claim or piece of evidence, and the statuses listed as `needs_claim` must cite a **claim** specifically: scoping a control out, or accepting a compensating control in its place, is a judgement someone made and that judgement needs a source.
 
 ### 4. Leave the status alone
 
-Mapping is not assessing. A control you have just mapped stays `not-assessed` until the assessor decides, with evidence, what it is. Do not set `satisfied` because a claim says the thing is done — a claim is what the system owner asserts, not proof.
+Mapping is not assessing. A control you have just mapped stays `not-assessed` until the assessor decides, with evidence, what it is. Do not set `effective` because a claim says the thing is done — a claim is what the system owner asserts, not proof.
 
 The one exception: propose `not-applicable` where the profile clearly does not reach the system (a control about gateways on a system with no gateway), and put the proposal to the assessor rather than setting it.
 

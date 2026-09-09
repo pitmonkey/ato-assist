@@ -47,7 +47,7 @@ Links point downward, toward evidence, and are never mirrored back: claim → so
 | **source** | `id title kind received origin classification hash state updated` | `kind`: document, interview, scan-output, config-export, screenshot, correspondence, other. `state`: ingested, superseded |
 | **claim** | `id title statement source state confidence method updated` | `state`: draft, asserted, corroborated, refuted, retired |
 | **evidence** | `id title bears_on direction artifact method collected collected_by state updated` | `direction`: supports, refutes, mixed. `artifact` is a path — a blob cannot carry frontmatter |
-| **control** | `id framework title status confidence method updated` | `status`: not-assessed, satisfied, partially-satisfied, not-satisfied, not-applicable, inherited |
+| **control** | `id framework title status confidence method updated` | `status`: from the framework's own vocabulary in `frameworks/<framework>.yaml`, never a list this skill keeps. The directory the file sits in chooses the vocabulary, which is why `ATO-E121` exists |
 | **risk** | `id title statement threat vulnerability consequence refs state updated` | `state`: draft, open, mitigating, accepted, closed. Severity is derived from `risk-matrix.yaml`, never stored |
 | **rfi** | `id title question asked_of asked_on state updated` | `state`: open, answered, withdrawn, blocked |
 
@@ -62,10 +62,12 @@ Conditionally required: a risk needs `owner`, `likelihood` and `impact` once it 
 | `ATO-E001` | The assessment's classification is incomplete, or the marking is below the data or environment it describes |
 | `ATO-E002` | A confined sub-agent tried to write outside `.ato/staging/`, or to use a shell. Extractors and evidence-checkers hand their findings to the caller; only the caller writes the assessment |
 | `ATO-E003` | A contract write came from a sub-agent the hook could not identify. Hand the findings back and let the caller write them |
+| `ATO-E004` | A configured framework has no usable status vocabulary — `frameworks/<id>.yaml` is missing, unparseable or self-contradictory. A warning at the hook, because the write cannot fix it; blocking in `ato validate`, which is where it has to be loud |
 | `ATO-E101` | No frontmatter, or YAML outside the supported subset — the message names the line |
 | `ATO-E102` | A required field is missing, including one required by another field's value |
-| `ATO-E103` | A value is outside a closed enum |
+| `ATO-E103` | A value is outside a closed enum. For a control's `status`, outside its own framework's vocabulary — the message lists that framework's values, not a global list |
 | `ATO-E104` | An unknown field for this type |
+| `ATO-E105` | A control's `status` is a word its framework used to carry. The message names the current value to use instead; the hint says what to re-check where the mapping is a lean rather than an equivalence |
 | `ATO-E110` | Nothing cited. A claim needs `source`, evidence needs `bears_on`, a risk needs `refs`, an assessed control needs a claim or evidence |
 | `ATO-E111` | A reference is not of the form `PREFIX-NNNN[#anchor]` |
 | `ATO-E120` | `id` disagrees with the filename |
@@ -75,6 +77,31 @@ Conditionally required: a risk needs `owner`, `likelihood` and `impact` once it 
 | `ATO-E140` | `method: ad-hoc` with `confidence: high` — degrading to ad-hoc handling caps confidence at medium |
 
 The fix for `ATO-E110` is to find the reference, never to reword the entry.
+
+## The status vocabulary, and migrating to it
+
+A control's `status` is the framework's word, not the workbench's. The vocabulary lives in `frameworks/<framework>.yaml` in the assessment, copied there by `ato init`; the plugin's copy is `config/frameworks/`. The file declares the values, which one means nobody has looked, which may cite nothing, and which must cite a **claim** rather than merely evidence.
+
+The ISM ships IRAP effectiveness ratings, because that is what an IRAP assessment reports:
+
+| Status | Means |
+|---|---|
+| `not-assessed` | Nobody has looked. The only status that may cite nothing |
+| `ineffective` | Assessed, and the control is not doing its job |
+| `alternate-control` | The framework's control is not in place, and a compensating control has been accepted instead. Must cite the claim that argues the substitution |
+| `effective` | Assessed, and the control is doing its job |
+| `not-applicable` | Scoped out. Must cite the claim that argues it |
+
+An assessment written before the vocabulary moved out of the code uses four words that no longer exist. Each is `ATO-E105`, which names its replacement:
+
+| Was | Now | Check it |
+|---|---|---|
+| `satisfied` | `effective` | Mechanical |
+| `not-satisfied` | `ineffective` | Mechanical |
+| `partially-satisfied` | `ineffective` | **Re-read it.** IRAP has no partial rating. `ineffective` does not overstate, but "partly there" and "not doing its job" are not the same finding, and the risk that hangs off it may need rewording |
+| `inherited` | `effective` | **Re-read it.** IRAP has no inherited rating. The cited claim becomes the only record that another party provides this control, so make the claim say so before you change the status |
+
+If `frameworks/<framework>.yaml` is missing entirely, `ato status` and `ato validate` both say so and no status is checked against anything — copy it from the plugin's `config/frameworks/`. A control in a framework with no readable vocabulary counts as **not** assessed, so coverage understates rather than flatters.
 
 ## Warnings — these do not block a write
 

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import datetime
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from ato_assist import repo, scaffold, validate
+from ato_assist import repo, scaffold, status, validate
 from tests_support import SPEC
 
 
@@ -116,3 +117,27 @@ def test_creates_a_directory_for_each_configured_framework(tmp_path: Path) -> No
     scaffold.create(tmp_path, SPEC)
     assert (tmp_path / "controls" / "ism").is_dir()
     assert "ism" in (tmp_path / "controls" / "ism" / "README.md").read_text()
+
+
+def test_copies_the_framework_vocabulary_into_the_assessment(tmp_path: Path) -> None:
+    scaffold.create(tmp_path, SPEC)
+    assert (tmp_path / "frameworks" / "ism.yaml").is_file()
+    assert repo.load_vocabularies(tmp_path / "frameworks").get("ism") is not None
+
+
+def test_the_framework_vocabulary_is_not_a_placeholder_awaiting_a_board(
+    tmp_path: Path,
+) -> None:
+    """The ISM's own words are a framework fact, unlike the risk matrix."""
+    scaffold.create(tmp_path, SPEC)
+    assert "review-required" not in (tmp_path / "frameworks" / "ism.yaml").read_text()
+    assert "ism.yaml" not in status.render(tmp_path, datetime.date(2026, 9, 2))
+
+
+def test_a_framework_the_plugin_ships_no_vocabulary_for_still_scaffolds(
+    tmp_path: Path,
+) -> None:
+    """Never block: an unknown framework is a gap to report, not a reason to refuse."""
+    scaffold.create(tmp_path, SPEC._replace(framework="nist"))
+    assert (tmp_path / "controls" / "nist").is_dir()
+    assert repo.load_vocabularies(tmp_path / "frameworks").get("nist") is None

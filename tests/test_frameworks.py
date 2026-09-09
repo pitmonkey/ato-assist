@@ -228,3 +228,26 @@ def test_the_module_level_control_schema_carries_no_frameworks_words() -> None:
     fields = {field.name: field for field in schema.CONTROL.fields}
     assert fields["status"].enum is None
     assert schema.CONTROL.any_of_when == ()
+
+
+# --- the shipped phase gates must speak the shipped vocabulary ------------------------
+
+
+def test_every_status_the_shipped_process_gates_on_is_a_status_the_ism_declares() -> None:
+    """A gate naming a status no vocabulary has matches nothing, forever, in silence.
+
+    `checks._matching` compares strings and knows nothing of frameworks — by design. That
+    makes this the only place the two shipped files can be held to each other.
+    """
+    from ato_assist.miniyaml import loads
+
+    process = loads((PLUGIN_ROOT / "config" / "process.yaml").read_text())
+    gated = {
+        criterion["args"]["where"]["status"]
+        for phase in process["phases"]
+        for criterion in phase["exit_criteria"]
+        if isinstance(criterion.get("args", {}).get("where"), dict)
+        and "status" in criterion["args"]["where"]
+    }
+    assert gated
+    assert gated <= set(ism().values)

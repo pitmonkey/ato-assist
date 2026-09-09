@@ -65,4 +65,4 @@ The second reference adapter is deliberately unwritten — it waits on the asses
 
 ## Licence
 
-MIT. The vendored ISM OSCAL content under `data/ism-oscal/` is © Commonwealth of Australia, licensed CC BY 4.0.
+MIT. The vendored ISM OSCAL content under `data/ism/` is © Commonwealth of Australia, licensed CC BY 4.0.

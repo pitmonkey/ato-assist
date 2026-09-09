@@ -1,0 +1,43 @@
+schema: ato-assist/framework@1
+
+id: ism
+name: Australian Government Information Security Manual
+
+# What an IRAP assessment reports is control effectiveness. These are the ratings an
+# assessor writes; they are not the workbench's opinion of them, and they are not shared
+# with any other framework.
+status:
+  values: [not-assessed, ineffective, alternate-control, effective, not-applicable]
+
+  # The one value meaning nobody has looked yet. Coverage is every control that is not
+  # this one; `ato status` and the report both read the sentinel from here rather than
+  # knowing a word of their own.
+  unassessed: not-assessed
+
+  # Statuses carrying no judgement, so citing nothing is legitimate. Every other value
+  # must cite at least one claim or piece of evidence.
+  uncited: [not-assessed]
+
+  # Statuses that are a judgement rather than a measurement. Scoping a control out, or
+  # accepting a compensating control in its place, is an argument somebody made, so it
+  # must cite the claim that makes it.
+  needs_claim: [not-applicable, alternate-control]
+
+# Vocabularies this framework used to carry. A control still using one is reported by
+# name with its replacement, rather than as a bare enum failure that does not say what
+# to write instead. `review: true` marks a mapping that is a lean, not an equivalence.
+retired:
+  - {from: satisfied, to: effective}
+  - from: partially-satisfied
+    to: ineffective
+    review: true
+    note: >-
+      IRAP has no partial rating. Mapping to ineffective does not overstate, but
+      re-check each one rather than accepting the mapping blind.
+  - {from: not-satisfied, to: ineffective}
+  - from: inherited
+    to: effective
+    review: true
+    note: >-
+      IRAP has no inherited rating. The cited claim is now the only record that this
+      control is inherited from another party, so say so in the claim.

@@ -20,7 +20,9 @@ __all__ = [
     "MARKINGS",
     "METHOD",
     "RequiredWhen",
+    "Retirement",
     "SCHEMAS",
+    "Vocabulary",
     "marking_rank",
 ]
 
@@ -82,6 +84,35 @@ class AnyOfWhen(NamedTuple):
     message: str
     when_in: tuple[str, ...] = ()
     when_not_in: tuple[str, ...] = ()
+
+
+class Retirement(NamedTuple):
+    """A status value a framework used to carry, and what replaces it."""
+
+    old: str
+    new: str
+    review: bool = False  # the mapping is a lean, not an equivalence
+    note: str = ""
+
+
+class Vocabulary(NamedTuple):
+    """What one framework's controls may say, and which of those words carry weight.
+
+    The words are the framework's, never the workbench's. `uncited` and `needs_claim`
+    are the two citation rules expressed as value sets, so a framework that draws the
+    line elsewhere moves the line rather than patching the validator.
+    """
+
+    framework: str
+    values: tuple[str, ...]
+    unassessed: str
+    uncited: tuple[str, ...]
+    needs_claim: tuple[str, ...]
+    retired: tuple[Retirement, ...] = ()
+
+    def retirement(self, value: object) -> Retirement | None:
+        """The retirement covering ``value``, if it is a word this framework has dropped."""
+        return next((r for r in self.retired if r.old == value), None)
 
 
 class ItemSchema(NamedTuple):

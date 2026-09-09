@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from . import frontmatter
-from .repo import ASSESSMENT_FILE, FRAMEWORKS_DIR
+from .repo import ASSESSMENT_FILE
 from .schema import MARKINGS, marking_rank
 
 __all__ = ["Spec", "ScaffoldError", "create"]
@@ -95,7 +95,7 @@ def create(root: Path, spec: Spec, today: datetime.date | None = None) -> Path:
     )
 
     (root / ASSESSMENT_FILE).write_text(_assessment_yaml(spec, today or datetime.date.today()))
-    _copy_config(root, spec)
+    _copy_config(root)
     _seed_working_files(root, spec)
     (root / ".gitignore").write_text(_gitignore(spec))
     _git_init(root, spec)
@@ -150,17 +150,9 @@ def _assessment_yaml(spec: Spec, today: datetime.date) -> str:
     return frontmatter.dump(data)
 
 
-def _copy_config(root: Path, spec: Spec) -> None:
+def _copy_config(root: Path) -> None:
     for name in ("process.yaml", "risk-matrix.yaml", "register-columns.yaml"):
         (root / name).write_text((PLUGIN_ROOT / "config" / name).read_text())
-
-    # The framework's own status vocabulary. A framework the plugin ships no vocabulary
-    # for scaffolds anyway and is reported as ATO-E004 — an unknown framework is a gap to
-    # record, never a reason to refuse to start the assessment.
-    shipped = PLUGIN_ROOT / "config" / "frameworks" / f"{spec.framework}.yaml"
-    if shipped.is_file():
-        (root / FRAMEWORKS_DIR).mkdir(parents=True, exist_ok=True)
-        (root / FRAMEWORKS_DIR / shipped.name).write_text(shipped.read_text())
 
 
 def _seed_working_files(root: Path, spec: Spec) -> None:

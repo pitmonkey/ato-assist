@@ -42,7 +42,7 @@ One claim per dispatch. Batching them produces averaged, hedged verdicts.
 - `supported` → the claim moves to `corroborated`.
 - `contradicted` → the claim moves to `refuted`. This is a finding; it will usually become a risk.
 - `partly-supported` → the claim stays `asserted`, and the body records exactly which part is covered and which is not.
-- `unevidenced` → the claim stays `asserted`. Do **not** mark it refuted, and do not mark the related control `ineffective`.
+- `unevidenced` → the claim stays `asserted`. Do **not** mark it refuted, and do not mark the related control `not-satisfied`.
 
 The evidence entry's own `direction` records what it showed. Update it if the sub-agent's reading differs from what was recorded when it was collected.
 
@@ -58,7 +58,7 @@ ato rfi new --question "<the missing field, as a request>" --asked-of "<who>" --
 
 A control's status follows from its claims and evidence, but it is the assessor's call, not an arithmetic result. Propose the change and say what it rests on; let them decide.
 
-A control whose claims are all unevidenced is **not** `ineffective`. It is still `not-assessed`, and the reason is that nobody has looked.
+A control whose claims are all unevidenced is **not** `not-satisfied`. It is still `not-assessed`, and the reason is that nobody has looked.
 
 ### 6. Commit
 

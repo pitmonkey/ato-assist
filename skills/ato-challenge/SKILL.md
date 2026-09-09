@@ -26,7 +26,7 @@ Schema errors, dangling references and failing exit criteria are already found b
 
 ### 2. Dispatch the challenger
 
-Dispatch the `challenger` sub-agent against the assessment. It hunts for claims contradicted by their evidence, controls called effective on assertion alone, `not-applicable` and `alternate-control` judgements whose cited claim does not argue them, ineffective controls with no risk, stale evidence, and scope drift.
+Dispatch the `challenger` sub-agent against the assessment. It hunts for claims contradicted by their evidence, controls satisfied on assertion alone, `not-applicable` and `inherited` judgements whose cited claim does not argue them, unsatisfied controls with no risk, stale evidence, and scope drift.
 
 ### 3. Verify each finding against the source before acting on it
 
@@ -60,7 +60,7 @@ ato commit --kind note --summary "challenge: 4 high, 9 medium; 2 rejected with r
 
 ## When to run it
 
-At least once before the report. Also worth it at the end of control mapping, when `not-applicable` and `alternate-control` decisions are fresh and cheap to revisit.
+At least once before the report. Also worth it at the end of control mapping, when `not-applicable` decisions are fresh and cheap to revisit.
 
 ## Guardrails
 

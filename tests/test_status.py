@@ -198,7 +198,7 @@ def test_control_coverage_counts_against_the_framework_profile_not_the_files(
         id="ISM-0421",
         framework="ism",
         title="Authentication",
-        status="effective",
+        status="satisfied",
         claims=["CLM-0001"],
         confidence="medium",
         method="document-review",
@@ -270,7 +270,7 @@ def test_coverage_survives_a_profile_typed_in_the_wrong_case(assessment: Path) -
         id="ISM-0421",
         framework="ism",
         title="Authentication",
-        status="effective",
+        status="satisfied",
         claims=["CLM-0001"],
         confidence="medium",
         method="document-review",
@@ -376,45 +376,3 @@ def test_an_unrated_draft_risk_is_reported_without_an_alarm(assessment: Path) ->
     )
     assert "not been rated" in line
     assert "!!" not in line
-
-
-# --- coverage reads the sentinel from the framework, not from a word of its own --------
-
-
-def test_a_control_in_a_framework_with_no_vocabulary_does_not_count_as_assessed(
-    assessment: Path,
-) -> None:
-    """The safe direction: an unreadable vocabulary must understate coverage, not flatter it."""
-    import shutil
-
-    add(
-        assessment,
-        "controls/ism/ISM-0421.md",
-        id="ISM-0421",
-        framework="ism",
-        title="Authentication",
-        status="effective",
-        claims=["CLM-0001"],
-        confidence="medium",
-        method="document-review",
-        updated=TODAY,
-    )
-    shutil.rmtree(assessment / "frameworks")
-    assert status.summary(assessment, TODAY)["controls_assessed"] == 0
-
-
-def test_the_unassessed_sentinel_comes_from_the_framework(assessment: Path) -> None:
-    for identifier, state in (("ISM-0421", "effective"), ("ISM-0422", "not-assessed")):
-        add(
-            assessment,
-            f"controls/ism/{identifier}.md",
-            id=identifier,
-            framework="ism",
-            title="Authentication",
-            status=state,
-            claims=["CLM-0001"],
-            confidence="medium",
-            method="document-review",
-            updated=TODAY,
-        )
-    assert status.summary(assessment, TODAY)["controls_assessed"] == 1

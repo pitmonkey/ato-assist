@@ -53,8 +53,6 @@ ato next-id   the next free ID                ato commit    a structured commit
 
 Every artefact is markdown with YAML frontmatter, hand-editable and machine-checkable. Claims, controls and risks must cite a source; a `PreToolUse` hook denies writes that do not. See `CLAUDE.md` and `skills/ato-schemas/SKILL.md` for the schemas.
 
-A control's `status` is the framework's vocabulary, not the plugin's. It is declared in `frameworks/<id>.yaml` in the assessment, copied there at init from `config/frameworks/`, and the ISM ships IRAP effectiveness ratings — `not-assessed`, `ineffective`, `alternate-control`, `effective`, `not-applicable`. The same file says which statuses may cite nothing and which must cite a claim, so a framework that draws those lines elsewhere moves them rather than patching the validator.
-
 The hook checks a file's **shape**, not its authorship. A well-formed claim passes whether or not anyone read the document it cites, and no hook can tell the difference — so the defence against a fabricated entry is the assessor checking extractor counts and spot-checking quotes, not the tooling. `templates/assessment-CLAUDE.md` says so to every session that opens an assessment.
 
 Integrating a new evidence source means writing a conformant file into `evidence/` — nothing more. Domain-specific evidence analysis belongs in separate small adapter plugins, not here.
@@ -67,4 +65,4 @@ The second reference adapter is deliberately unwritten — it waits on the asses
 
 ## Licence
 
-MIT. The vendored ISM OSCAL content under `data/ism/` is © Commonwealth of Australia, licensed CC BY 4.0.
+MIT. The vendored ISM OSCAL content under `data/ism-oscal/` is © Commonwealth of Australia, licensed CC BY 4.0.

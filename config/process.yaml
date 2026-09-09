@@ -67,9 +67,9 @@ phases:
     title: Risk extraction
     exit_criteria:
       - id: gaps-have-risks
-        describe: Every ineffective control is cited by a risk
+        describe: Every unsatisfied control is cited by a risk
         check: no_orphans
-        args: {from: controls, referenced_by: risks, via: refs, where: {status: ineffective}}
+        args: {from: controls, referenced_by: risks, via: refs, where: {status: not-satisfied}}
       - id: risks-sourced
         describe: Every risk cites at least one claim, control or piece of evidence
         check: required_ref
@@ -78,10 +78,10 @@ phases:
   - id: evidence-reconciliation
     title: Evidence reconciliation
     exit_criteria:
-      - id: effective-needs-evidence
-        describe: Every effective control cites at least one piece of evidence
+      - id: satisfied-needs-evidence
+        describe: Every satisfied control cites at least one piece of evidence
         check: required_ref
-        args: {dir: controls, where: {status: effective}, field: evidence, min: 1}
+        args: {dir: controls, where: {status: satisfied}, field: evidence, min: 1}
       - id: no-draft-evidence
         describe: No evidence entry is still a draft
         check: field_count

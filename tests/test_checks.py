@@ -141,7 +141,7 @@ def test_required_ref_finds_items_citing_too_little(assessment: Path) -> None:
         id="ISM-0421",
         framework="ism",
         title="A control",
-        status="effective",
+        status="satisfied",
         claims=["CLM-0001"],
         confidence="medium",
         method="document-review",
@@ -153,7 +153,7 @@ def test_required_ref_finds_items_citing_too_little(assessment: Path) -> None:
         dir="controls",
         field="evidence",
         min=1,
-        where={"status": "effective"},
+        where={"status": "satisfied"},
     )
     assert result.passed is False
     assert result.offenders == ["controls/ism/ISM-0421.md"]
@@ -274,7 +274,7 @@ def test_a_where_clause_may_name_several_acceptable_values(assessment: Path) -> 
         id="ISM-0421",
         framework="ism",
         title="A control",
-        status="effective",
+        status="satisfied",
         claims=["CLM-0001", "CLM-0002"],
         confidence="medium",
         method="document-review",

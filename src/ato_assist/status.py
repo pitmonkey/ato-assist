@@ -40,7 +40,6 @@ def summary(root: Path | str, today: datetime.date | None = None) -> dict[str, A
         "claims": _states(index, "claims"),
         "evidence": _states(index, "evidence"),
         "controls": _states(index, "controls", field="status"),
-        "controls_assessed": _assessed(index),
         "controls_in_profile": _framework_total(index),
         "unevidenced_claims_total": len(index.of_kind("claims")),
         "risks": _states(index, "risks"),
@@ -115,7 +114,7 @@ def _coverage_block(index: RepoIndex, today: datetime.date) -> list[str]:
     lines = ["COVERAGE"]
     controls = _states(index, "controls", field="status")
     if controls:
-        assessed = _assessed(index)
+        assessed = sum(count for state, count in controls.items() if state != "not-assessed")
         total = _framework_total(index) or sum(controls.values())
         percent = f" ({assessed * 100 // total}%)" if total else ""
         lines.append(
@@ -206,9 +205,6 @@ def _framework_total(index: RepoIndex) -> int:
     Coverage measured against the files on disk would read 100% the moment the first
     control is written, which is worse than no number at all.
     """
-    # Takes frameworks[0] and knows only the ISM. That is a separate multi-framework
-    # bug, older than the per-framework status vocabulary and deliberately not fixed
-    # alongside it: this denominator is a catalogue question, not a vocabulary one.
     frameworks = index.assessment.get("frameworks") or []
     if not isinstance(frameworks, list) or not frameworks:
         return 0
@@ -222,24 +218,6 @@ def _framework_total(index: RepoIndex) -> int:
         return len(oscal.load().profile(profile))
     except oscal.CatalogueError:
         return 0
-
-
-def _assessed(index: RepoIndex) -> int:
-    """Controls somebody has looked at, per each framework's own unassessed sentinel.
-
-    Counted per control rather than off the status tally, because the tally has already
-    thrown the framework away and two frameworks have two sentinels. A control whose
-    vocabulary cannot be read counts as *not* assessed: the opposite error would report
-    coverage the assessment has not earned.
-    """
-    assessed = 0
-    for item in index.of_kind("controls"):
-        vocabulary = index.vocabularies.get(item.path.split("/")[1])
-        if vocabulary is None:
-            continue
-        if item.data.get("status") != vocabulary.unassessed:
-            assessed += 1
-    return assessed
 
 
 def _states(index: RepoIndex, kind: str, field: str = "state") -> dict[str, int]:

@@ -1,4 +1,4 @@
-"""Locating an assessment repository and reading its configuration files.
+"""Locating an assessment repository and reading its two configuration files.
 
 Root discovery walks up from the *file being written*, never from the process working
 directory: subagents, worktrees and background shells all have an unreliable cwd, and a
@@ -9,29 +9,25 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path, PurePosixPath
-from typing import Any, NamedTuple
+from typing import Any
 
 from . import frontmatter
 from .miniyaml import MiniYamlError, loads
-from .schema import SCHEMAS, Retirement, Vocabulary
+from .schema import SCHEMAS
 from .validate import schema_for_path
 
 __all__ = [
     "ASSESSMENT_FILE",
-    "FRAMEWORKS_DIR",
     "Item",
     "RepoIndex",
-    "Vocabularies",
     "find_root",
     "find_root_from",
     "load_assessment",
-    "load_vocabularies",
     "load_yaml",
     "relative",
 ]
 
 ASSESSMENT_FILE = "assessment.yaml"
-FRAMEWORKS_DIR = "frameworks"
 # Deep enough for any real layout, shallow enough that a stray marker far up the tree
 # cannot capture unrelated files.
 _MAX_DEPTH = 8
@@ -70,118 +66,6 @@ def load_yaml(path: Path) -> dict[str, Any] | None:
 def load_assessment(root: Path) -> dict[str, Any] | None:
     return load_yaml(Path(root) / ASSESSMENT_FILE)
 
-# --- framework vocabularies -----------------------------------------------------------
-#
-# A control's `status` vocabulary belongs to its framework, not to the workbench, so it
-# is data rather than an enum in `schema.py`. Loading never raises and never invents a
-# default: a file that is missing, unparseable or self-contradictory becomes a problem
-# the caller reports as ATO-E004, because a hook that guessed at the vocabulary would be
-# judging a control against words nobody agreed to.
-
-
-class Vocabularies(NamedTuple):
-    """Every framework vocabulary an assessment declares, and why any are unusable."""
-
-    by_framework: dict[str, Vocabulary]
-    problems: dict[str, str]
-
-    def get(self, framework: str) -> Vocabulary | None:
-        return self.by_framework.get(framework)
-
-    def problem(self, framework: str) -> str:
-        """Why ``framework`` has no usable vocabulary. Empty only when it has one."""
-        if framework in self.by_framework:
-            return ""
-        return self.problems.get(framework) or (
-            f"no {FRAMEWORKS_DIR}/{framework}.yaml in this assessment; `ato init` writes "
-            f"one, and it can be copied from the plugin's config/frameworks/"
-        )
-
-
-def load_vocabularies(directory: Path | str) -> Vocabularies:
-    """Every ``<id>.yaml`` under ``directory``. A bad file becomes a problem, not a raise."""
-    by_framework: dict[str, Vocabulary] = {}
-    problems: dict[str, str] = {}
-    base = Path(directory)
-    for path in sorted(base.glob("*.yaml")) if base.is_dir() else []:
-        name = path.stem
-        document = load_yaml(path)
-        if document is None:
-            problems[name] = f"{path.name} is missing or outside the supported YAML subset"
-            continue
-        vocabulary, problem = _vocabulary(name, document)
-        if vocabulary is None:
-            problems[name] = f"{path.name}: {problem}"
-        else:
-            by_framework[name] = vocabulary
-    return Vocabularies(by_framework, problems)
-
-
-def _vocabulary(name: str, document: dict[str, Any]) -> tuple[Vocabulary | None, str]:
-    status = document.get("status")
-    if not isinstance(status, dict):
-        return None, "no status block"
-
-    values = _strings(status.get("values"))
-    if not values:
-        return None, "status.values is empty; a framework with no statuses assesses nothing"
-
-    unassessed = status.get("unassessed")
-    if not isinstance(unassessed, str) or unassessed not in values:
-        return None, f"status.unassessed {unassessed!r} is not one of status.values"
-
-    uncited = _strings(status.get("uncited"))
-    needs_claim = _strings(status.get("needs_claim"))
-    for field, declared in (("uncited", uncited), ("needs_claim", needs_claim)):
-        outside = [value for value in declared if value not in values]
-        if outside:
-            return None, f"status.{field} names {outside[0]!r}, which is not one of status.values"
-    overlap = sorted(set(uncited) & set(needs_claim))
-    if overlap:
-        return None, (
-            f"{overlap[0]!r} is in both status.uncited and status.needs_claim, so it would "
-            f"both excuse a control from citing anything and require it to cite a claim"
-        )
-
-    retired, problem = _retirements(document.get("retired"), values)
-    if retired is None:
-        return None, f"retired: {problem}"
-
-    return Vocabulary(name, values, unassessed, uncited, needs_claim, retired), ""
-
-
-def _retirements(
-    declared: Any, values: tuple[str, ...]
-) -> tuple[tuple[Retirement, ...] | None, str]:
-    if declared is None:
-        return (), ""
-    if not isinstance(declared, list):
-        return None, "expected a list"
-    retirements: list[Retirement] = []
-    for entry in declared:
-        if not isinstance(entry, dict):
-            return None, "every entry is a mapping with `from` and `to`"
-        old, new = entry.get("from"), entry.get("to")
-        if not isinstance(old, str) or not isinstance(new, str):
-            return None, "every entry needs a `from` and a `to`"
-        if new not in values:
-            return None, f"{old!r} maps to {new!r}, which is not one of status.values"
-        if old in values:
-            return None, (
-                f"{old!r} is retired and still in status.values, which would make every "
-                f"conformant control a migration finding"
-            )
-        retirements.append(
-            Retirement(old, new, entry.get("review") is True, str(entry.get("note") or ""))
-        )
-    return tuple(retirements), ""
-
-
-def _strings(value: Any) -> tuple[str, ...]:
-    if not isinstance(value, list):
-        return ()
-    return tuple(entry for entry in value if isinstance(entry, str))
-
 
 @dataclasses.dataclass(frozen=True)
 class Item:
@@ -203,7 +87,6 @@ class RepoIndex:
     def __init__(self, root: Path | str) -> None:
         self.root = Path(root)
         self.assessment = load_assessment(self.root) or {}
-        self.vocabularies = load_vocabularies(self.root / FRAMEWORKS_DIR)
         self.items: dict[str, Item] = {}
         self._by_kind: dict[str, list[Item]] = {kind: [] for kind in SCHEMAS}
         for path in sorted(self.root.rglob("*.md")):

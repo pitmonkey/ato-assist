@@ -21,7 +21,7 @@ Risks are not something the assessor arrives holding. By the time an assessment 
 
 Three places they come from, and the second is the one most assessments miss:
 
-**A control that cannot be assessed without evidence.** The classic chain: control `ineffective` → the evidence showing it → the risk. This is the case the register is built around, and it needs the customer to have answered.
+**A control that cannot be assessed without evidence.** The classic chain: control `not-satisfied` → the evidence showing it → the risk. This is the case the register is built around, and it needs the customer to have answered.
 
 **A control the document itself admits is not implemented.** A narrative saying "a control response is planned", or "there seems to be a gap", or claiming a status while its own text describes the opposite, is *the system owner asserting in writing that the control is not in place*. That is a documented admission, not an assessor's unevidenced judgement, and **it is assessable today on the document alone.** No RFI has to come back first. In an assessment where every control is `not-assessed` and no evidence exists, this is the entire raisable set — and it is the difference between weeks of dead time waiting on the customer and none.
 
@@ -60,7 +60,7 @@ The severity is derived from the matrix and never written into the file. If you 
 
 `refs` must name at least one claim, control, source or piece of evidence. A risk with no traceability cannot survive a governance board asking "how do you know?" — and the contract hook will refuse it.
 
-Where the chain runs control `ineffective` → the evidence that shows it → the risk, cite the whole chain rather than just the control.
+Where the chain runs control `not-satisfied` → the evidence that shows it → the risk, cite the whole chain rather than just the control.
 
 Where it does not — a documented admission, or a finding about the document itself — cite what actually establishes it: the claim carrying the admission, the control it bears on, and the source section. A risk resting on the document's own words is as traceable as one resting on evidence, and often more so.
 

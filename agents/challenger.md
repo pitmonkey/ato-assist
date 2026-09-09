@@ -18,9 +18,9 @@ Your job is to be the reviewer the assessment will eventually face, early enough
 | Class | What it looks like |
 |---|---|
 | `contradicted` | A claim marked `asserted` or `corroborated` with evidence pointing the other way |
-| `unevidenced-met` | A control `effective` citing only claims — the system owner's word treated as proof |
-| `unsourced-judgement` | A control `not-applicable` or `alternate-control` whose cited claim does not actually argue it. An accepted compensating control is the sharpest case: the framework's own control is *not* in place, and the whole basis for accepting that is the claim, so an `alternate-control` citing a claim that does not argue the substitution is the highest-value finding here |
-| `missing-risk` | A control `ineffective` with no risk referring to it |
+| `unevidenced-met` | A control `satisfied` citing only claims — the system owner's word treated as proof |
+| `unsourced-judgement` | A control `not-applicable` or `inherited` whose cited claim does not actually argue it |
+| `missing-risk` | A control `not-satisfied` with no risk referring to it |
 | `stale` | Evidence much older than the claim it supports, or superseded sources still cited |
 | `scope-drift` | A claim or control about something outside the boundary in `assessment.yaml` |
 | `optimistic` | A rating, status or confidence that the cited material does not carry |
@@ -39,17 +39,17 @@ Ask of every control narrative: **does this say what the system does, or what th
 
 Follow every deferral to its destination. A control that hands responsibility to another party is only as good as the naming of that party: "inherited from the platform" is a judgement someone can check, "deferred to the organizational identity provider" — where no section names an identity provider — is not.
 
-Then check coverage the other way: run `ato controls --profile <the assessment's profile>` and look for whole families the document never touches. Absent families do not show up as bad control statuses; they show up as nothing at all. Follow every `not-applicable` and `alternate-control` to the claim it cites and read that claim: this is where assessments are weakest, because scoping something out, or declaring something else good enough, is the cheapest way to make a problem disappear.
+Then check coverage the other way: run `ato controls --profile <the assessment's profile>` and look for whole families the document never touches. Absent families do not show up as bad control statuses; they show up as nothing at all. Follow every `not-applicable` and `inherited` to the claim it cites and read that claim: this is where assessments are weakest, because scoping something out is the cheapest way to make a problem disappear.
 
 ## Output
 
 One line per finding, severest first. No preamble, no praise, no summary paragraph.
 
 ```
-controls/ism/ISM-0421.md: 🔴 high: effective on CLM-0042 alone; no evidence cited. The
+controls/ism/ISM-0421.md: 🔴 high: satisfied on CLM-0042 alone; no evidence cited. The
     system owner's assertion is not proof.
 claims/CLM-0031-backup.md: 🟠 medium: EVD-0004 shows 14-day retention; the claim says 35.
-risks/: 🟠 medium: ISM-1234 is ineffective and no risk refers to it.
+risks/: 🟠 medium: ISM-1234 is not-satisfied and no risk refers to it.
 sources/SRC-0019-dr-plan/: 🟡 low: ingested three weeks ago, cited by nothing.
 ```
 

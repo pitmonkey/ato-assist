@@ -20,10 +20,7 @@ __all__ = [
     "MARKINGS",
     "METHOD",
     "RequiredWhen",
-    "Retirement",
     "SCHEMAS",
-    "Vocabulary",
-    "control_schema",
     "marking_rank",
 ]
 
@@ -85,35 +82,6 @@ class AnyOfWhen(NamedTuple):
     message: str
     when_in: tuple[str, ...] = ()
     when_not_in: tuple[str, ...] = ()
-
-
-class Retirement(NamedTuple):
-    """A status value a framework used to carry, and what replaces it."""
-
-    old: str
-    new: str
-    review: bool = False  # the mapping is a lean, not an equivalence
-    note: str = ""
-
-
-class Vocabulary(NamedTuple):
-    """What one framework's controls may say, and which of those words carry weight.
-
-    The words are the framework's, never the workbench's. `uncited` and `needs_claim`
-    are the two citation rules expressed as value sets, so a framework that draws the
-    line elsewhere moves the line rather than patching the validator.
-    """
-
-    framework: str
-    values: tuple[str, ...]
-    unassessed: str
-    uncited: tuple[str, ...]
-    needs_claim: tuple[str, ...]
-    retired: tuple[Retirement, ...] = ()
-
-    def retirement(self, value: object) -> Retirement | None:
-        """The retirement covering ``value``, if it is a word this framework has dropped."""
-        return next((r for r in self.retired if r.old == value), None)
 
 
 class ItemSchema(NamedTuple):
@@ -207,50 +175,32 @@ CONTROL = ItemSchema(
         Field("id"),
         Field("framework"),
         Field("title"),
-        # No enum here on purpose: what a status may say belongs to the framework, and
-        # `control_schema` supplies it. The structural half of the contract says only
-        # that there is a status.
-        Field("status"),
+        Field("status", enum=("not-assessed", "satisfied", "partially-satisfied",
+                              "not-satisfied", "not-applicable", "inherited")),
         Field("claims", kind="id-list", required=False, ref_pattern=r"CLM-\d{4}"),
         Field("evidence", kind="id-list", required=False, ref_pattern=r"EVD-\d{4}"),
         Field("confidence", enum=CONFIDENCE),
         Field("method", enum=METHOD),
         *_COMMON,
     ),
-)
-
-
-def control_schema(vocabulary: Vocabulary) -> ItemSchema:
-    """CONTROL, with its status enum and its two citation rules taken from one framework.
-
-    The value sets are the framework's; the messages stay here, because a deny message is
-    the workbench's own voice and contract wording does not belong in a data file.
-    """
-    fields = tuple(
-        field._replace(enum=vocabulary.values) if field.name == "status" else field
-        for field in CONTROL.fields
-    )
-    return CONTROL._replace(
-        fields=fields,
-        any_of_when=(
-            AnyOfWhen(
-                fields=("claims", "evidence"),
-                when_field="status",
-                when_not_in=vocabulary.uncited,
-                message="an assessed control must cite at least one claim or evidence entry",
-            ),
-            AnyOfWhen(
-                fields=("claims",),
-                when_field="status",
-                when_in=vocabulary.needs_claim,
-                message=(
-                    "this status is a judgement rather than a measurement, so it must cite "
-                    "the claim that argues it"
-                ),
+    any_of_when=(
+        AnyOfWhen(
+            fields=("claims", "evidence"),
+            when_field="status",
+            when_not_in=("not-assessed",),
+            message="an assessed control must cite at least one claim or evidence entry",
+        ),
+        AnyOfWhen(
+            fields=("claims",),
+            when_field="status",
+            when_in=("not-applicable", "inherited"),
+            message=(
+                "scoping a control out or inheriting it is itself a judgement, so it must "
+                "cite the claim that argues it"
             ),
         ),
-    )
-
+    ),
+)
 
 RISK = ItemSchema(
     kind="risk",

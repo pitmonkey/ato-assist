@@ -17,10 +17,11 @@ Optional external binaries, used when present and degraded around when absent: `
 
 ## Use
 
-Run `/ato-init` in an empty directory to scaffold an assessment. `/ato-status` tells you where you are at any time.
+Run `/ato-init` in an empty directory to scaffold an assessment. `/ato-status` tells you where you are at any time. `/ato-help` if you have not used this before.
 
 | Skill | Purpose |
-|---|---|
+| --- | --- |
+| `/ato-help` | What the plugin is, and an index of the skills |
 | `/ato-init` | Scaffold the assessment repo and capture classification |
 | `/ato-interview` | Structured interview about the system, before ingest |
 | `/ato-ingest` | Process `inbox/` into `sources/` with a hash manifest and acronym scan |
@@ -31,6 +32,7 @@ Run `/ato-init` in an empty directory to scaffold an assessment. `/ato-status` t
 | `/ato-risk` | Draft a risk with enforced structure and the configured matrix |
 | `/ato-challenge` | Adversarial review of the whole assessment |
 | `/ato-rfi` | Create, list and export requests for information |
+| `/ato-process` | How an assessment is conducted, phase by phase |
 | `/ato-phase` | Show exit criteria; move the phase marker |
 | `/ato-status` | Derived status, one screen |
 | `/ato-export` | Risk register and report skeleton |

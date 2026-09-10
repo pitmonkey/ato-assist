@@ -43,13 +43,31 @@ CORPUS = [
     "tags:\n  - the owner's view\n  - a second item\n",
     "note: the team's view  # trailing comment\n",
     "args: {dir: claims, note: the owner's view}\n",
+    # A block scalar's body is text. Every entry below carries something that is a YAML
+    # construct anywhere else — a comment, an unclosed quote, a document marker, a tab,
+    # a key — and must come back as the characters that were written.
+    "note: |\n  code # not a comment\n",
+    "note: >\n  the organisation's\n  policy\n",
+    'note: >\n  she said "hello\n  there"\n',
+    "note: |\n  ---\n  after\n",
+    "note: |\n  has\ta tab\n",
+    "note: |\n  \tcontent\n  more\n",
+    "note: |\n  title: AU-12: OpenShift\n",
+    "note: |-\n  no trailing newline\n",
+    "note: >-\n  folded\n  tight\n",
+    "note: |\n  one\n\n  two\n",
+    "id: CLM-0001\nnote: |\n  last\n",
+    "source:\n  - ref: SRC-0007\n    note: |\n      inside\n",
 ]
 
 
 def _repo_documents() -> list[tuple[str, str]]:
     """Every YAML document shipped in the repo: config files and markdown frontmatter."""
     found: list[tuple[str, str]] = []
-    for directory in ("config", "templates", "tests/fixtures"):
+    # skills/, agents/ and adapters/ carry the only block scalars the repo ships. Leaving
+    # them out meant the corpus could not contain a block-scalar failure at all, which is
+    # how eleven unparseable SKILL.md files sat here unnoticed.
+    for directory in ("config", "templates", "tests/fixtures", "skills", "agents", "adapters"):
         base = REPO_ROOT / directory
         if not base.is_dir():
             continue
@@ -74,6 +92,9 @@ REJECTED = [
     "id: CLM-0001\n\tbad: tab\n",
     "a: 1\n---\nb: 2\n",
     "base: &anchor\n  a: 1\n",
+    # A tab where the indentation itself should be. Inside a block scalar or not, real
+    # YAML refuses this — the body skip must not have made the whole file text.
+    "note: |\n\tcontent\n",
 ]
 
 
@@ -97,7 +118,10 @@ def test_nothing_this_parser_accepts_is_rejected_by_real_yaml() -> None:
             continue  # refusing something is always safe; being lax is not
         # Accepted here, so real YAML must accept it too, or the file is unreadable
         # by anything else that follows the contract.
-        yaml.safe_load(text), name
+        try:
+            yaml.safe_load(text)
+        except yaml.YAMLError as exc:
+            raise AssertionError(f"{name}: accepted here, rejected by real YAML: {exc}") from None
 
 
 def test_agrees_with_pyyaml_on_every_document_shipped_in_the_repo() -> None:

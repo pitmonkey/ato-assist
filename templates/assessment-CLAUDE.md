@@ -34,7 +34,7 @@ There is no mechanism that will catch that, so the defence is procedural and it 
 ## The contract
 
 | Directory | Holds | Must cite |
-|---|---|---|
+| --- | --- | --- |
 | `sources/` | Ingested documents, one directory per document, split by heading | — |
 | `claims/` | Discrete assertions extracted from sources | `source` — at least one |
 | `evidence/` | Artefacts bearing on claims, with provenance | `bears_on` — at least one claim |
@@ -49,5 +49,6 @@ References are by ID (`CLM-0042`, `SRC-0007#privileged-access`), never by path, 
 
 - `/ato-status` before anything else. It tells you the phase, what is blocking it, and what changed since last time.
 - `/ato-phase` shows the exit criteria for the current phase and which ones fail. Only the assessor moves the marker.
+- `/ato-help` is what the plugin is and what skills exist; `/ato-process` is how an assessment is conducted, phase by phase. Neither reads this assessment.
 - Heavy reading goes to a sub-agent. Do not load a 400-page SSP into this conversation; `/ato-ingest` and `/ato-extract-claims` dispatch the `extractor` for that.
 - Ask about judgement, never about mechanics. "Does this claim look met to you?" is a good question. "How should I parse this file?" is not — work it out, or log the gap.

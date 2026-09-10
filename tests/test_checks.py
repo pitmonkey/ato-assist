@@ -194,6 +194,35 @@ def test_file_exists_fails_when_the_file_is_empty(assessment: Path) -> None:
     assert not run(assessment, "file_exists", path="outputs/{short_name}-report.md").passed
 
 
+def test_file_exists_without_a_marker_fails_while_the_marker_is_there(assessment: Path) -> None:
+    note = assessment / "notes" / "seeded.md"
+    note.write_text("# Heading\n\n> Nothing here yet.\n")
+    result = run(assessment, "file_exists", path="notes/seeded.md", without="Nothing here yet")
+    assert not result.passed
+    assert result.actual == "still the template"
+    assert result.offenders == ["notes/seeded.md"]
+
+
+def test_file_exists_without_a_marker_passes_once_it_is_replaced(assessment: Path) -> None:
+    note = assessment / "notes" / "seeded.md"
+    note.write_text("# Heading\n\nAn insider with privileged access.\n")
+    assert run(assessment, "file_exists", path="notes/seeded.md", without="Nothing here yet").passed
+
+
+def test_file_exists_without_a_marker_still_reports_a_missing_file_as_missing(
+    assessment: Path,
+) -> None:
+    result = run(assessment, "file_exists", path="notes/absent.md", without="Nothing here yet")
+    assert not result.passed
+    assert result.actual == "missing"
+
+
+def test_file_exists_ignores_the_marker_when_no_marker_is_configured(assessment: Path) -> None:
+    # The argument is optional, and every criterion that predates it keeps its meaning.
+    (assessment / "notes" / "seeded.md").write_text("> Nothing here yet.\n")
+    assert run(assessment, "file_exists", path="notes/seeded.md").passed
+
+
 def test_an_unknown_check_fails_rather_than_crashing(assessment: Path) -> None:
     result = run(assessment, "invented_check", dir="claims")
     assert result.passed is False

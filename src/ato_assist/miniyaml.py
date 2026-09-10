@@ -34,6 +34,9 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d")
 _AMBIGUOUS_BOOL = {"yes", "no", "on", "off", "y", "n"}
 _SEQ_MARKER = "\x00-"
+# A ``key: >`` header, whose value is the indicator alone. Used only to decide whether the
+# lines below are block content; `_attach_block_scalars` still settles what they mean.
+_BLOCK_HEADER_RE = re.compile(r": *[|>]-?$")
 
 
 class MiniYamlError(ValueError):
@@ -95,9 +98,29 @@ def _scan(text: str) -> list[_Line]:
             continue
         _expand(out, no, indent, content)
         index += 1
+        # A block scalar's body is text, not YAML. Skipping it here is what keeps the
+        # checks above — tabs, `---`, an unclosed quote — from firing on content that
+        # only looks like a construct: a description folded mid-phrase is ordinary prose.
+        index = max(index, _block_body_end(out[-1], raw_lines, no))
 
     _attach_block_scalars(out, raw_lines)
     return out
+
+
+def _block_body_end(emitted: _Line, raw_lines: list[str], header_no: int) -> int:
+    """The physical line number the block scalar opened by ``emitted`` runs to, or 0.
+
+    The indent is taken from the emitted line rather than the raw one so that a header
+    inside a sequence item — ``- statement: >``, which `_expand` re-indents by two — is
+    measured against the same margin `_attach_block_scalars` will use.
+    """
+    if emitted.text == _SEQ_MARKER or not _BLOCK_HEADER_RE.search(emitted.text):
+        return 0
+    key_and_value = _split_key(emitted.text, emitted.no)
+    if key_and_value is None or key_and_value[1] not in ("|", ">", "|-", ">-"):
+        return 0
+    _, consumed_to = _collect_block(raw_lines, header_no, emitted.indent)
+    return consumed_to
 
 
 def _expand(out: list[_Line], no: int, indent: int, content: str) -> None:

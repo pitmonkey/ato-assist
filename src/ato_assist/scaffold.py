@@ -166,6 +166,7 @@ def _seed_working_files(root: Path, spec: Spec) -> None:
         ("tooling-gaps.md", "tooling-gaps.md"),
         ("glossary.md", "glossary.md"),
         ("glossary-unresolved.md", "glossary/unresolved.md"),
+        ("threats.md", "notes/threats.md"),
     ):
         (root / destination).write_text((templates / template).read_text())
 

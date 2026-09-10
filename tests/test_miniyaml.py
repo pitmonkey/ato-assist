@@ -103,6 +103,57 @@ def test_parses_a_folded_block_scalar() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("note: |\n  code # not a comment\n", "code # not a comment\n"),
+        ("note: >\n  the organisation's\n  policy\n", "the organisation's policy\n"),
+        ('note: >\n  she said "hello\n  there"\n', 'she said "hello there"\n'),
+        ("note: |\n  ---\n  after\n", "---\nafter\n"),
+        ("note: |\n  has\ta tab\n", "has\ta tab\n"),
+        ("note: |\n  \tcontent\n  more\n", "\tcontent\nmore\n"),
+        ("note: |\n  title: AU-12: OpenShift\n", "title: AU-12: OpenShift\n"),
+    ],
+)
+def test_a_block_scalar_body_is_text_not_yaml(text: str, expected: str) -> None:
+    """Each body carries something the scanner rejects everywhere else.
+
+    A folded `description:` that breaks a quoted phrase across two lines is the case that
+    found this: eleven of the plugin's own SKILL.md files were unparseable here while real
+    YAML read them fine.
+    """
+    assert miniyaml.loads(text) == {"note": expected}
+
+
+def test_a_tab_in_place_of_indentation_is_still_refused() -> None:
+    # The body skip must not turn the whole file into text; real YAML refuses this too.
+    with pytest.raises(miniyaml.MiniYamlError):
+        miniyaml.loads("note: |\n\tcontent\n")
+
+
+def test_a_block_scalar_chomps_its_trailing_newline_when_told_to() -> None:
+    assert miniyaml.loads("note: |-\n  no trailing newline\n") == {
+        "note": "no trailing newline"
+    }
+    assert miniyaml.loads("note: >-\n  folded\n  tight\n") == {"note": "folded tight"}
+
+
+def test_a_blank_line_inside_a_block_scalar_survives() -> None:
+    assert miniyaml.loads("note: |\n  one\n\n  two\n") == {"note": "one\n\ntwo\n"}
+
+
+def test_a_block_scalar_can_be_the_last_key() -> None:
+    assert miniyaml.loads("id: CLM-0001\nnote: |\n  last\n") == {
+        "id": "CLM-0001",
+        "note": "last\n",
+    }
+
+
+def test_a_block_scalar_inside_a_sequence_item() -> None:
+    text = "source:\n  - ref: SRC-0007\n    note: |\n      inside\n"
+    assert miniyaml.loads(text) == {"source": [{"ref": "SRC-0007", "note": "inside\n"}]}
+
+
 def test_an_empty_document_is_an_empty_mapping() -> None:
     assert miniyaml.loads("") == {}
     assert miniyaml.loads("\n# only a comment\n") == {}

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, NamedTuple
 
 from .repo import Item, RepoIndex
@@ -224,22 +225,50 @@ def _age_max(
     )
 
 
+def _still_marked(path: Path, marker: str) -> bool:
+    """Whether a seeded file still carries its placeholder marker.
+
+    Unreadable counts as still marked: the criterion asserts someone wrote the file, and
+    a file that cannot be read is not evidence that they did.
+    """
+    try:
+        return marker in path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return True
+
+
 @check("file_exists")
 def _file_exists(
-    index: RepoIndex, *, criterion_id: str, path: str, **_: Any
+    index: RepoIndex, *, criterion_id: str, path: str, without: str | None = None, **_: Any
 ) -> CheckResult:
-    """A named file exists and has something in it."""
+    """A named file exists and has something in it.
+
+    `without` names a marker the seeded template carries. While it is still there the file
+    exists and nobody has written it, and a criterion that cannot tell those apart is
+    satisfied by scaffolding alone — which is to say it measures nothing.
+    """
     resolved = path.format(short_name=index.short_name())
-    matches = [
+    present = [
         candidate
         for candidate in index.root.glob(resolved)
         if candidate.is_file() and candidate.stat().st_size > 0
     ]
+    matches = [
+        candidate
+        for candidate in present
+        if without is None or not _still_marked(candidate, without)
+    ]
+    if matches:
+        actual = "present"
+    elif present:
+        actual = "still the template"
+    else:
+        actual = "missing"
     return CheckResult(
         criterion_id,
         "file_exists",
         bool(matches),
-        "present" if matches else "missing",
-        f"{resolved} present",
+        actual,
+        f"{resolved} written" if without else f"{resolved} present",
         [] if matches else [resolved],
     )

@@ -1,10 +1,7 @@
 ---
 name: ato-phase
 description: >
-  Use when someone asks whether an ATO assessment can move to the next phase, what the
-  current phase requires, or wants to move the phase marker. Triggers: "/ato-phase",
-  "can we move on", "what's left in this phase", "next phase", "are we done with gap
-  analysis". For the whole picture including coverage and RFIs use ato-status.
+  Use when someone asks whether an ATO assessment can move to the next phase, what the current phase requires, or wants to move the phase marker. Triggers: "/ato-phase", "can we move on", "what's left in this phase", "next phase", "are we done with gap analysis". For the whole picture including coverage and RFIs use ato-status; for how an assessment is conducted in general, including phases you are not in, ato-process.
 allowed-tools: [Bash, AskUserQuestion]
 ---
 

@@ -51,13 +51,29 @@ phases:
         check: field_count
         args: {dir: controls, field: framework, min: 1}
 
+  # Reconciliation settles `controls[].status`, and both `gaps-have-risks` below and this
+  # phase's own criterion key off it. A phase cannot ask for a fact a later phase makes.
+  - id: evidence-reconciliation
+    title: Evidence reconciliation
+    exit_criteria:
+      - id: satisfied-needs-evidence
+        describe: Every satisfied control cites at least one piece of evidence
+        check: required_ref
+        args: {dir: controls, where: {status: satisfied}, field: evidence, min: 1}
+      - id: no-draft-evidence
+        describe: No evidence entry is still a draft
+        check: field_count
+        args: {dir: evidence, field: state, equals: draft, max: 0}
+
   - id: threat-mapping
     title: Threat mapping
     exit_criteria:
       - id: threats-recorded
         describe: The threat picture has been written down
         check: file_exists
-        args: {path: notes/threats.md}
+        # The template ships with this line; replacing it is the act of saying a human
+        # wrote the picture. Same idea as deleting `review-required` above.
+        args: {path: notes/threats.md, without: "Nothing here yet"}
       - id: no-stale-rfis
         describe: No request for information has been open longer than 21 days
         check: age_max
@@ -74,18 +90,6 @@ phases:
         describe: Every risk cites at least one claim, control or piece of evidence
         check: required_ref
         args: {dir: risks, field: refs, min: 1}
-
-  - id: evidence-reconciliation
-    title: Evidence reconciliation
-    exit_criteria:
-      - id: satisfied-needs-evidence
-        describe: Every satisfied control cites at least one piece of evidence
-        check: required_ref
-        args: {dir: controls, where: {status: satisfied}, field: evidence, min: 1}
-      - id: no-draft-evidence
-        describe: No evidence entry is still a draft
-        check: field_count
-        args: {dir: evidence, field: state, equals: draft, max: 0}
 
   - id: report
     title: Report

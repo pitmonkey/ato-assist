@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import datetime
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from ato_assist import repo, scaffold, validate
+from ato_assist import checks, repo, scaffold, validate
 from tests_support import SPEC
 
 
@@ -75,6 +76,29 @@ def test_seeds_the_working_files(tmp_path: Path) -> None:
     assert (tmp_path / "tooling-gaps.md").is_file()
     assert (tmp_path / "glossary.md").is_file()
     assert (tmp_path / "glossary" / "unresolved.md").is_file()
+    assert (tmp_path / "notes" / "threats.md").is_file()
+
+
+def test_the_seeded_threat_picture_does_not_satisfy_its_own_criterion(tmp_path: Path) -> None:
+    """Seeding a file the `threat-mapping` phase requires must not hand it the phase.
+
+    `file_exists` passes on anything non-empty, so without the marker the criterion would
+    be met by scaffolding alone — a phase that measures nothing, which is worse than one
+    that fails honestly.
+    """
+    scaffold.create(tmp_path, SPEC)
+    index = repo.RepoIndex(tmp_path)
+    [threats] = [
+        result
+        for result in checks.evaluate_phase(index, "threat-mapping", today=datetime.date.today())
+        if result.criterion_id == "threats-recorded"
+    ]
+    assert not threats.passed
+    assert threats.actual == "still the template"
+
+    written = tmp_path / "notes" / "threats.md"
+    written.write_text("# Threat picture\n\nAn insider with access to the management plane.\n")
+    assert checks.evaluate_phase(index, "threat-mapping", today=datetime.date.today())[0].passed
 
 
 def test_gitignores_inbox_originals_by_default(tmp_path: Path) -> None:
